@@ -175,8 +175,9 @@ Skill 2 は `docs/project-definition.md` に次の区分があることを前提
   - [x] `docs/` のサブフォルダ構成（H13 の未裁定） → H19
   - [x] `project-definition.md` が無い・不完全なときの振る舞い → H20
   - [x] Skill 3 が Skill 2 の成果物に期待するもの → H24（導出。Skill 3 の企画時に再確認）
-  - [ ] Skill 2 自身の `references/` 構成
-  - [ ] 公開仕様（言語・対応エージェント・配布・README と LICENSE・評価）。Skill 1 と共通
+  - [x] Skill 2 自身の `references/` 構成 → H26（導出）
+  - [x] 公開仕様（言語・対応エージェント・配布・README と LICENSE・評価）。Skill 1 と共通
+        → [common.md](common.md) の C1〜C4、hook の実行環境は H25。配布方法だけ未裁定（common.md に持ち越し）
 
 ### H15. 基本役を超える Agent 分割は、ツールチェーンかリスク階級が違うときだけ（2026-09-20）
 
@@ -331,3 +332,36 @@ docs/
 - Skill 3 が必要とするのは、調査役 subagent が存在すること、主セッションが `docs/**` に書けること、
   どの役を何に使うかが `docs/agent-architecture.md` から読めること。いずれも土台（H18）に含まれる。
 - したがって Skill 3 は、ユーザーがどのレベルを選んでいても動く。
+
+### H25. 生成する hook は Node.js スクリプト（2026-09-20）
+
+- hook（書き込み境界の判定、完了ブロック、トレース記録）は node で実行する `.js` / `.mjs` として生成する。
+- 理由: hook は JSON を受け取って判定する。Node.js なら JSON の扱いとパス判定を標準機能だけで書け、
+  Windows・macOS・Linux で同じコードが動く。作者自身の環境が Windows である。
+- 前提: 対象プロジェクトの言語に関係なく Node.js の導入が要る。README に前提として書き、
+  Skill 2 は実行時に node の有無を確かめる。
+- 退けた案: bash スクリプト（JSON の解析に jq が要り、Windows の Git Bash にも macOS にも標準では入っていない）／
+  プロジェクトの言語に合わせて生成する案（雛形を言語の数だけ保守・評価することになる）。
+
+### H26. Skill 2 自身のファイル構成（2026-09-20、導出）
+
+作者の裁定ではなく、H1〜H25 から導いた実装上の構成。作者の既存スキルと同じ `SKILL.md` + `references/` + `assets/` の形にする。
+実装時に過不足があれば直す。
+
+```text
+project-design-harness/
+├── SKILL.md                     手順の本体
+│                                （入力の点検 → レベル選択 → Policy 表 → ファイル計画 → 生成 → 根拠記録）
+├── references/
+│   ├── harness-concepts.md      8区分の定義と .claude/ への対応。出典を明記（H7）
+│   ├── levels.md                土台と6レベル。何が生成され、何の失敗を防ぐか（H10・H18）
+│   ├── policy.md                リスク4階級、入力契約 D・E からの導き方、下限（H9・H22・H23）
+│   ├── agents.md                基本役、分割規則、書き込み境界、主セッションの役割（H15〜H17）
+│   ├── claude-code-mapping.md   Claude Code の仕様の確認済み事実と出典、既知の限界（H16・H17）
+│   └── merge.md                 既存ファイルの扱いと再実行（H12）
+└── assets/
+    ├── agents/                  subagent 定義の雛形（実装役・調査役・検証役）
+    ├── hooks/                   Node.js hook の雛形（書き込み境界・完了ブロック・トレース）（H25）
+    ├── skills/                  対象プロジェクトに生成する skill の雛形（タスク契約・振り返り）
+    └── docs/                    agent-architecture.md・state.md・contract.md・receipt.md の雛形（H19）
+```
