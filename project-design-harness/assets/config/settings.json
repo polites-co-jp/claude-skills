@@ -30,7 +30,7 @@
     ],
     "SubagentStop": [
       {
-        "//": "L5 以上。matcher は、コードを書く役の名前を | でつなぐ。harness.json の verify.roles と一致させる。timeout は verify.timeoutSec より長くする",
+        "//": "段階 5（終わったと言う前に検査を通す）以上。matcher は、コード実装役の名前を | でつなぐ。テスト実装役は入れない。harness.json の verify.roles と一致させる。timeout は verify.timeoutSec より長くする",
         "matcher": "implementer",
         "hooks": [
           {
@@ -45,7 +45,7 @@
         ]
       },
       {
-        "//": "L6。すべての役の終了を記録する",
+        "//": "段階 6（失敗を記録して、仕組みを育てる）。すべての役の終了を記録する",
         "hooks": [
           {
             "type": "command",
@@ -60,7 +60,7 @@
     ],
     "PostToolUse": [
       {
-        "//": "L5 以上。検証が通らないまま終わった委任があれば、その事実を主セッションに届ける",
+        "//": "段階 5 以上。検証が通らないまま終わった委任があれば、その事実を主セッションに届ける",
         "matcher": "Agent",
         "hooks": [
           {
@@ -76,7 +76,7 @@
     ],
     "SubagentStart": [
       {
-        "//": "L6",
+        "//": "段階 6",
         "hooks": [
           {
             "type": "command",

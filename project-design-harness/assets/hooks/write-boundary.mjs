@@ -53,7 +53,7 @@ function checkWrite(rel) {
     decide('deny', 'The harness config .claude/harness.json is missing or not valid JSON, so write boundaries cannot be evaluated. Ask the user to repair it.', { path: rel, rule: 'config' });
   }
   const rc = roleConfig(config, role);
-  if (!canWrite(rel, rc.write)) {
+  if (!canWrite(rel, rc.write, config.pathSets)) {
     decide('deny', fill(rc.onDeny || 'Role "{role}" may not write to {path}.', { role, path: rel }), { path: rel, rule: 'role' });
   }
 }

@@ -19,8 +19,8 @@
 |---|---|
 | 主セッションの役割、地図、安全の決まり | `CLAUDE.md`（プロジェクトのルート） |
 | 領域ごとのローカル指示 | `.claude/rules/*.md`（`paths:` つき） |
-| 実装役・調査役・検証役・運用役 | `.claude/agents/*.md` |
-| 書き込み境界、ハーネス保護、コマンドの承認と禁止（役ごと） | `PreToolUse` hook |
+| 調査・テスト実装・コード実装・コードレビュー・検証・セキュリティレビュー・運用の各役 | `.claude/agents/*.md` |
+| 書き込み境界（設計文書・テスト・コードを、役ごとに分ける）、ハーネス保護、コマンドの承認と禁止（役ごと） | `PreToolUse` hook |
 | 完了ゲート | `SubagentStop` hook。未検証の通知は `PostToolUse`（`Agent` ツール）hook |
 | トレース | `SubagentStart` / `SubagentStop` hook と、上の2つの hook からの追記 |
 | 承認と禁止の2枚目の網、秘密情報ファイルの読み取り禁止、許可リスト | `.claude/settings.json` の `permissions` |
@@ -90,6 +90,7 @@ subagent の中で発火したときは `agent_id` と `agent_type` が加わる
 - **`disallowedTools` に `Bash(git push *)` のような指定つきの項目を書くと、一致するコマンドだけでなく Bash ツールが丸ごと外れる**。特定のコマンドを止めるには `permissions.deny` を使え、と公式に書かれている。ただし `permissions` は役ごとに分けられない。このスキルが役ごとのコマンド制限を hook で行うのは、このためである
 - `tools` は `Read, Grep, Glob` のようにカンマ区切りで書く
 - **subagent は `AskUserQuestion` を使えない**。`tools` に書いても外される。subagent にした役は、ユーザーに質問できない
+- **subagent は、既定でバックグラウンドで動く**（v2.1.198 以降）。バックグラウンドの subagent が承認の要る操作に当たると、確認は主セッションに出て、どの subagent が求めているかが示される（v2.1.186 以降）。それより古い版では、確認が出ないまま自動で拒否されていた。運用役が承認つきの操作を実行できるのは、この動作が前提である。運用役の定義には、確認が出ないまま拒否されたら、繰り返さずに返す、と書いてある
 - subagent は subagent を呼べる（既定で主セッションの下に 3 層まで）
 - `--agent <name>` で主セッション自体を Agent にすると、Agent のシステムプロンプトが Claude Code 既定のものを置き換える。このスキルはこの方法を使わない
 

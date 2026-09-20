@@ -1,7 +1,7 @@
 # Policy: 承認と禁止の導き方
 
 プロジェクト定義から、「自動でやってよい操作／人の承認が要る操作／禁止する操作」を導く手順。
-ここで導く**安全の下限**は、利用者がどのレベルを選んでも必ず生成する。
+ここで導く**安全の下限**は、利用者が仕組みをどこまで入れると選んでも、必ず生成する。
 
 同じプロジェクト定義からは、同じ Policy が出るようにする。この文書の規則で決まらないことを、その場の推測で足さない。
 
@@ -13,7 +13,7 @@
 - [道具が決まっていないとき](#道具が決まっていないとき)
 - [操作とコマンドの対応](#操作とコマンドの対応)
 - [どのプロジェクトにも入れる行](#どのプロジェクトにも入れる行)
-- [L3 の許可リスト](#l3-の許可リスト)
+- [日常の操作の許可リスト](#日常の操作の許可リスト)
 - [permissions の書き方（確認済みの仕様）](#permissions-の書き方確認済みの仕様)
 - [仕組みでは止められないもの](#仕組みでは止められないもの)
 - [Policy 表の見せ方](#policy-表の見せ方)
@@ -44,7 +44,7 @@
 | | hook（`.claude/harness.json` の `commands`） | permissions（`.claude/settings.json`） |
 |---|---|---|
 | 役ごとの違い | 付けられる。承認を求められる役を限定できる | 付けられない。セッション全体に効く |
-| 照合 | 1つの単純なコマンドの中の、どこに現れても一致する。`pnpm exec prisma migrate reset` も `docker compose exec db psql` も捕まえる | コマンド文字列の先頭からの照合。`pnpm exec ...` のような間接実行には一致しない |
+| 照合 | 1つの単純なコマンドの中の、どこに現れても一致する（1語だけの規則は、実行されるプログラムの位置だけ）。`pnpm exec prisma migrate reset` も `docker compose exec db psql` も捕まえる | コマンド文字列の先頭からの照合。`pnpm exec ...` のような間接実行には一致しない |
 | シェル | Bash と PowerShell を同じ規則で見る | `Bash(...)` と `PowerShell(...)` は別の規則 |
 | 利用者からの見え方 | `harness.json` を読まないと分からない | `/permissions` で一覧できる |
 
@@ -57,7 +57,9 @@
 | hook の `match` | permissions の規則 |
 |---|---|
 | `git push`（`*` なし） | `Bash(git push *)` |
-| `git push * --force*`（途中に単独の `*`） | `*` を外した形と残した形の2本。`Bash(git push --force*)` と `Bash(git push * --force*)` |
+| `stripe`（1語） | `Bash(stripe *)` |
+| `git push * --force*`（途中に単独の `*`。最後の語が `*` で終わる） | `*` を外した形と残した形の2本。`Bash(git push --force*)` と `Bash(git push * --force*)` |
+| `prisma db push * --force-reset`（途中に単独の `*`。最後の語が `*` で終わらない） | 同じく2本で、末尾に ` *` を足す。`Bash(prisma db push --force-reset *)` と `Bash(prisma db push * --force-reset *)` |
 | 区分 E の開発環境が Windows | 上と同じものを `PowerShell(...)` の形でも書く |
 
 `pnpm exec prisma migrate reset` のような形を permissions に足さない。パッケージマネージャごと、呼び出し方ごとに増えていき、それでも網羅できない。そこは hook の仕事である。
@@ -72,11 +74,12 @@
 ]
 ```
 
-- `match` は、空白で区切った語の並び。1つの単純なコマンド（`&&` や `|` で区切った1片）の中の**どの位置からでも**、この順で**隣り合って**現れれば一致する。だから `pnpm exec prisma migrate reset` も `docker compose exec db psql` も捕まえ、`git log --grep push` は `git push` に一致しない
+- `match` は、空白で区切った語の並び。**2語以上の規則**は、1つの単純なコマンド（`&&` や `|` で区切った1片）の中の**どの位置からでも**、この順で**隣り合って**現れれば一致する。だから `pnpm exec prisma migrate reset` も `docker compose exec web prisma migrate deploy` も捕まえ、`git log --grep push` は `git push` に一致しない
+- **1語だけの規則**（`stripe`、`psql`、`vercel` など）は、その語が**実行されるプログラムの位置**にあるときだけ一致する。どの位置でも一致させると、`grep -rn stripe app`、`pnpm add stripe`、`mkdir app/api/stripe` まで止めてしまうからだ。プログラムの位置とは、行頭（`FOO=bar` の代入の後を含む）、`sudo`・`env`・`npx`・`xargs` などの後、`pnpm exec`・`pnpm dlx`・`uv run`・`bundle exec` などの後、`pnpm stripe`・`yarn stripe` の形の2語目、`docker compose exec`・`docker run`・`kubectl exec`・`ssh` に渡された部分、PowerShell の `&` と `Start-Process` の後。ここに無い包み方で呼ばれた1語の規則は、すり抜ける
 - 先頭の語はプログラム名として照合する（`./node_modules/.bin/prisma`、`/usr/bin/git`、`prisma.exe` も一致）。プログラム名の直後の全体オプションは読み飛ばす（`git -C apps/web push`、`git -c k=v push`、`git --no-pager push` は `git push` に一致）
 - 単独の `*` は、0個以上の語。`git push * --force*` は `git push --force` にも `git push origin main --force` にも一致する
 - 語の中の `*` は、任意の文字列。`--force*` は `--force` にも `--force-with-lease=main` にも一致し、`-f*` は `-f` にも `-fu` にも一致する
-- シェルに文字列で渡されたコマンド（`bash -c "..."`、`powershell -Command "..."`）、`eval`、引用符の中のコマンド置換（`"$(...)"`）の中身も、同じように調べる
+- シェルに文字列で渡されたコマンド（`bash -c "..."`、`powershell -Command "..."`）、`eval`、`Invoke-Expression`、引用符の中のコマンド置換（`"$(...)"`）の中身も、同じように調べる
 - `deny` が一致すれば、`ask` より優先する。`deny` はすべての役で拒否
 - `ask` は、`roles` に挙げた役だけが承認を求められる。省略時は `["main", "operator"]`。それ以外の役（実装役など）は拒否され、「自分で実行せず、必要であることを報告せよ」と返る
 - `label` は、利用者と Agent に見せる操作の名前。利用者の言語で書く
@@ -86,9 +89,9 @@
 1. **プロジェクト定義に名前が出ている道具を洗い出す**。区分 B（外部とのやりとり、配布・実行場所）、C（技術）、E（環境）、および H（持ち越し）に書かれた、具体的な製品名・サービス名・CLI。ここに無い道具の規則は作らない
 2. **区分 D の「外部作用」を1行ずつ取り上げる**。手順 1 の道具の中から、それを実行しうるコマンドを下の対応表で特定し、`ask` にする。特定できなければ「道具が決まっていないとき」に従う
 3. **区分 D の「不可逆・機微な操作」を1行ずつ取り上げる**。同じくコマンドを特定し、上の基準で `deny` か `ask` かを決める
-3a. **区分 D の行に、危険なコマンドを包んだ scripts の名前が書かれていれば**（既存プロジェクトの定義に多い。「`pnpm db:reset`（中身は `prisma migrate reset --force`）」など）、中のコマンドに加えて、scripts の呼び出しも同じ扱いの規則にする。hook の `match` は `<パッケージマネージャ> * <scripts の名前>` の形で書く（`pnpm * db:reset`）。これ1本で、`pnpm db:reset` も `pnpm run db:reset` も `pnpm --dir apps/web run db:reset` も捕まえる。包まれた形は、コマンドの文字列から中身が見えないので、名前で止めるしかない
+3a. **区分 D の行に、コマンドそのものが書かれていれば**（既存プロジェクトの定義に多い。「本番 DB に `psql` でつなぐ」「`prisma migrate dev`」など）、下の対応表に無くても、そのコマンドを規則にする。扱いは、その行の項目（外部作用なら `ask`、不可逆・機微なら上の基準）で決める。**危険なコマンドを包んだ scripts の名前が書かれていれば**（既存プロジェクトの定義に多い。「`pnpm db:reset`（中身は `prisma migrate reset --force`）」など）、中のコマンドに加えて、scripts の呼び出しも同じ扱いの規則にする。hook の `match` は `<パッケージマネージャ> * <scripts の名前>` の形で書く（`pnpm * db:reset`）。これ1本で、`pnpm db:reset` も `pnpm run db:reset` も `pnpm --dir apps/web run db:reset` も捕まえる。包まれた形は、コマンドの文字列から中身が見えないので、名前で止めるしかない
 3b. **区分 D の「秘密情報・個人情報」に秘密情報があれば**、手順 1 の道具のうち、秘密情報を管理するコマンドを持つものを `ask` にする（対応表の「秘密情報の管理」）
-4. **区分 E のホスティングを見る**。リモートのホスティングがあれば（`none` でも `deferred` でもなければ）、`git push` を `ask`、強制 push を `deny` にする。push は、コードを手元の外へ出す操作である。CI の定義ファイル（下の対応表）の編集を `ask` にする
+4. **区分 E のホスティングを見る**。リモートのホスティングがあれば（`none` でも `deferred` でもなければ）、`git push` を `ask`、強制 push を `deny` にする。push は、コードを手元の外へ出す操作である。プルリクエストの作成とマージ、CI の手動実行（下の対応表）も `ask` にする。マージは、push と同じ結果（既定のブランチの更新、それに連なる自動デプロイ）を、push の関門を通らずに起こせる。CI の定義ファイル（下の対応表）の編集を `ask` にする
 5. **区分 E の実行環境の段階を見る**。本番か staging があり、区分 C に DB 種別があれば、その DB のクライアントコマンドを `ask` にする。コマンドの見た目では接続先を区別できないので、`deny` にはしない
 6. **「どのプロジェクトにも入れる行」を足す**
 
@@ -96,7 +99,7 @@
 
 各行には、根拠にしたプロジェクト定義の行（区分と項目）を必ず付ける。根拠を書けない行は、手順 6 の共通の行を除いて、入れてはいけない。
 
-階級は、次のように決める。手順 2 の行は「外部作用」。手順 3・3b の行は「不可逆・機微」。手順 4 の `git push` と CI の定義ファイルの編集は「外部作用」、強制 push は「不可逆・機微」。手順 5 の DB への直接接続は「不可逆・機微」（本番のデータに触れうる）。
+階級は、次のように決める。手順 2 の行は「外部作用」。手順 3・3b の行は「不可逆・機微」。手順 4 の `git push`、プルリクエストの作成とマージ、CI の手動実行、CI の定義ファイルの編集は「外部作用」、強制 push は「不可逆・機微」。手順 5 の DB への直接接続は「不可逆・機微」（本番のデータに触れうる）。
 
 ## 道具が決まっていないとき
 
@@ -120,11 +123,12 @@
 | パッケージの公開 | npm 系 → `npm publish`, `pnpm publish`, `yarn publish`／Cargo → `cargo publish`／Python → `twine upload`, `uv publish`／Ruby → `gem push` | `ask` |
 | 公開済みの版の取り下げ | `npm unpublish`／`cargo yank` | `deny` |
 | リリースの作成 | 区分 D にリリースや公開が外部作用として書かれていて、ホスティングが GitHub → `gh release create` | `ask` |
-| DB のマイグレーション（本番を含みうる） | Prisma → `prisma migrate deploy`／Alembic → `alembic upgrade`／Rails → `rails db:migrate`／Knex → `knex migrate:latest`／Flyway → `flyway migrate` | `ask` |
+| プルリクエストとCI（手順 4） | GitHub → `gh pr create`, `gh pr merge`, `gh workflow run`／GitLab → `glab mr create`, `glab mr merge`, `glab ci run` | `ask` |
+| DB のマイグレーション（本番を含みうる） | Prisma → `prisma migrate deploy`／Drizzle → `drizzle-kit migrate`, `drizzle-kit push`／Alembic → `alembic upgrade`／Rails → `rails db:migrate`／Knex → `knex migrate:latest`／Flyway → `flyway migrate` | `ask` |
 | DB の初期化 | Prisma → `prisma migrate reset`, `prisma db push * --force-reset`／Rails → `rails db:drop`, `rails db:reset`／PostgreSQL → `dropdb` | `deny` |
 | DB への直接接続（手順 5） | PostgreSQL → `psql`／MySQL → `mysql`／MongoDB → `mongosh`／Redis → `redis-cli` | `ask` |
 | 決済サービスの操作 | Stripe → `stripe` | `ask` |
-| 秘密情報の管理（手順 3b） | GitHub → `gh secret`／Vercel → `vercel env`／Fly.io → `fly secrets` | `ask` |
+| 秘密情報の管理（手順 3b） | GitHub → `gh secret`／Vercel → `vercel env`／Fly.io → `fly secrets`, `flyctl secrets` | `ask` |
 
 CI の定義ファイル（手順 4）。編集を permissions の `ask` にする。
 
@@ -143,7 +147,7 @@ CI の定義ファイル（手順 4）。編集を permissions の `ask` にす�
 | 操作 | 規則 | 扱い | 理由 |
 |---|---|---|---|
 | 秘密情報ファイルを読む | permissions: `Read(.env*)`、`Read(!.env.example)`、`Read(!.env.sample)`、`Read(!.env.template)`、`Read(**/secrets/**)` | `deny` | 区分 D の秘密情報が `none` でも入れる。秘密情報は後から増える。`Read` の `deny` は、同じパスへの Edit と Write も止める。雛形のファイルは `!` で除外する |
-| 未コミットの作業を消す | hook: `git clean`、`git reset * --hard`。`roles` には、主セッション・運用役に加えて、コードを書く役をすべて入れる | `ask` | 取り消せないので人に確かめる。ただし失敗した試みを捨てて戻すのは、実装役の正当な回復手段でもある |
+| 未コミットの作業を消す | hook: `git clean`、`git reset * --hard`。`roles` には、主セッション・運用役に加えて、コード実装役とテスト実装役をすべて入れる | `ask` | 取り消せないので人に確かめる。ただし失敗した試みを捨てて戻すのは、実装役の正当な回復手段でもある |
 | 履歴の書き換え（ホスティングがあるとき） | hook: `git push * --force*`、`git push * -f*` | `deny` | 他の人の作業と、戻すための履歴を壊す。根拠には「共通（E: ホスティングあり）」と書く |
 | ハーネス自身の変更 | hook の保護パス | 主セッションは承認、subagent は拒否 | Agent が自分の権限を黙って広げない |
 | 役ごとの書き込み境界 | hook の `roles` | 範囲外は拒否 | [agents.md](agents.md) |
@@ -151,9 +155,9 @@ CI の定義ファイル（手順 4）。編集を permissions の `ask` にす�
 **入れないもの**。`rm -rf` 全般と、`curl`・`wget`。ビルド成果物の掃除やローカルの動作確認で日常的に使うので、承認にすると流れが止まり、利用者は考えずに承認する癖が付く。考えずに承認される関門は、無いより悪い。
 作業場所の中の削除は、git で戻せる可逆な変更として扱う。書き込み境界 hook が、役の範囲外の削除を止める。
 
-## L3 の許可リスト
+## 日常の操作の許可リスト
 
-L3 以上では、日常の可逆な操作を permissions の `allow` に入れて、承認待ちで流れが止まらないようにする。区分 C のパッケージマネージャと、区分 E のコンテナ利用から導く。
+「日常の操作で止まらないようにする」（段階 3）以上では、日常の可逆な操作を permissions の `allow` に入れて、承認待ちで流れが止まらないようにする。区分 C のパッケージマネージャと、区分 E のコンテナ利用から導く。
 
 | 区分 C・E | `allow` に入れる例 |
 |---|---|
@@ -197,6 +201,7 @@ hook と permissions が見ているのは、ツールの呼び出し（どの�
 | テストや動作確認で、実在の人にメッセージが届く | 同上 | 開発用の接続先を、送信しない設定にする。切り替えの仕組みを、詳細設計の要件に入れる |
 | アプリケーションのコードや ORM から、本番 DB が書き換わる | 接続先は、コードと環境変数が決める | 本番の接続情報を開発環境に置かない |
 | `package.json` の scripts など、別の名前で包まれた操作 | `pnpm run deploy` の中身は、コマンドの文字列からは見えない | 定義に名前が書かれている scripts は、その名前で規則にする（手順 3a）。それ以外は、実装役の定義で禁じ、scripts の変更を検証役とレシートで見つける |
+| テストを本体と同じファイルに書く流儀の言語（Rust の単体テストなど）で、コード実装役がテストを書き換える | 同じファイルの中は、パスでは分けられない | 別ファイルのテストは分けられる。同じファイルのテストの変更は、レビュー役と検証役の基準で見つける |
 | スクリプトを介した、役の範囲外への書き込み | hook が読めるのは、リダイレクト・`tee`・`rm`・`cp`・`mv`・`sed -i` などの、書き込み先が引数に現れる形まで | 検証役の却下の基準（スコープ外の変更）とレシートで見つける |
 | 道具が未定の外部作用 | 規則にするコマンドが、まだ無い | 決まったらプロジェクト定義を更新して再実行する。それまでは人が実行する |
 | 個人情報が、ログやテストデータに書き出される | 内容の検査はしていない | 実装役の定義と、検証役の却下の基準で守る |
@@ -217,7 +222,7 @@ hook と permissions が見ているのは、ツールの呼び出し（どの�
 | クラウドへのデプロイ（イメージの公開より先） | D: クラウドへのデプロイ | 外部作用 | **道具が未定のため、仕組みでは止められない** | 決まったら定義を更新して再実行 |
 | テスト中に本物の課金が走る | D: 決済サービスへの課金 | 外部作用 | **仕組みでは止められない** | テスト用のキーだけを置く |
 
-可逆な変更の許可リスト（L3 以上）は、安全の判断ではないので、この表には混ぜない。表の下に「自動で許可する日常の操作」として一覧だけ添える。
+日常の操作の許可リスト（段階 3 以上）は、安全の判断ではないので、この表には混ぜない。表の下に「自動で許可する日常の操作」として一覧だけ添える。
 
 確認のときに、次の3点を必ず聞く。
 

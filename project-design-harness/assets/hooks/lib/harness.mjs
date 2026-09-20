@@ -80,13 +80,16 @@ export function matchesAny(relPath, globs) {
   return (globs || []).some((g) => globToRegExp(g).test(relPath));
 }
 
-// rules: ["+**", "-docs/**", "+docs/harness/**"]. The last matching rule wins. No match means not writable.
-export function canWrite(relPath, rules) {
+// rules: ["+**", "-@design", "+docs/harness/**", "-@tests"]. The last matching rule wins. No match means not writable.
+// "@name" refers to a named list of globs in config.pathSets, so that "where tests live" is written once.
+export function canWrite(relPath, rules, pathSets = {}) {
   let allowed = false;
   for (const rule of rules || []) {
     const sign = rule[0];
     if (sign !== '+' && sign !== '-') continue;
-    if (globToRegExp(rule.slice(1)).test(relPath)) allowed = sign === '+';
+    const body = rule.slice(1);
+    const globs = body.startsWith('@') ? pathSets[body.slice(1)] || [] : [body];
+    if (globs.some((g) => globToRegExp(g).test(relPath))) allowed = sign === '+';
   }
   return allowed;
 }
@@ -146,6 +149,7 @@ const programName = (token) => token.replace(/\\/g, '/').split('/').pop().replac
 
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh', 'fish', 'pwsh', 'powershell', 'cmd']);
 const INLINE_FLAG = /^(-[a-z]*c|-command|\/c)$/i;
+const EVALS = new Set(['eval', 'invoke-expression', 'iex']);
 
 // Every simple command in the text as a list of words, including commands handed to a shell as a string
 // (bash -c "...", sh -c "...", powershell -Command "...", eval "...").
@@ -161,7 +165,7 @@ export function simpleCommands(command, depth = 0) {
     }
     for (let i = 0; i < tokens.length; i++) {
       const program = programName(tokens[i]);
-      if (program === 'eval' && tokens[i + 1]) out.push(...simpleCommands(tokens.slice(i + 1).join(' '), depth + 1));
+      if (EVALS.has(program) && tokens[i + 1]) out.push(...simpleCommands(tokens.slice(i + 1).join(' '), depth + 1));
       if (!SHELLS.has(program)) continue;
       const flag = tokens.findIndex((tok, k) => k > i && INLINE_FLAG.test(tok));
       if (flag !== -1 && tokens[flag + 1]) out.push(...simpleCommands(tokens[flag + 1], depth + 1));
@@ -219,11 +223,55 @@ function matchAt(tokens, start, pattern) {
   return afterOptions(tokens, start + 1).some((t) => matchRest(tokens, t, rest));
 }
 
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+// Words that run what follows them as a command: "sudo psql", "npx stripe", PowerShell "Start-Process stripe".
+const WRAPPERS = new Set(['sudo', 'doas', 'env', 'time', 'nohup', 'nice', 'command', 'exec', 'xargs', 'winpty',
+  'npx', 'pnpx', 'bunx', 'dotenv', 'cross-env', 'start-process', 'saps', 'start']);
+// Package managers and task runners: "pnpm exec stripe", "uv run psql", and the short form "pnpm stripe" / "yarn stripe".
+const RUNNERS = new Set(['pnpm', 'npm', 'yarn', 'bun', 'deno', 'uv', 'poetry', 'pipenv', 'pdm', 'hatch', 'rye', 'bundle', 'mise']);
+const RUN_WORDS = new Set(['exec', 'dlx', 'x', 'run']);
+// Programs that run the rest of the line somewhere else: "docker compose exec db psql", "ssh host psql".
+const CONTAINERS = new Set(['docker', 'podman', 'nerdctl', 'docker-compose', 'kubectl', 'oc']);
+const REMOTES = new Set(['ssh', 'wsl']);
+
+// Positions where a word is the program being run, not an argument.
+// "grep -rn stripe app" has one (grep); "pnpm exec stripe listen" has three (pnpm, exec, stripe).
+function programPositions(tokens) {
+  const positions = new Set();
+  const todo = [0];
+  while (todo.length) {
+    let i = todo.pop();
+    while (i < tokens.length && (ASSIGNMENT.test(tokens[i]) || tokens[i] === '&' || tokens[i] === '--')) i++;
+    if (i >= tokens.length || positions.has(i)) continue;
+    positions.add(i);
+    const program = programName(tokens[i]);
+    if (WRAPPERS.has(program)) {
+      todo.push(...afterOptions(tokens, i + 1));
+    } else if (RUNNERS.has(program)) {
+      for (const k of afterOptions(tokens, i + 1)) {
+        todo.push(k);
+        if (k < tokens.length && RUN_WORDS.has(tokens[k].toLowerCase())) todo.push(...afterOptions(tokens, k + 1));
+      }
+    } else if (CONTAINERS.has(program) || REMOTES.has(program)) {
+      const from = REMOTES.has(program) ? i : tokens.findIndex((tok, k) => k > i && (tok === 'exec' || tok === 'run'));
+      if (from !== -1) for (let k = from + 1; k < tokens.length; k++) positions.add(k);
+    }
+  }
+  return positions;
+}
+
+// A pattern of two or more words is looked for anywhere in a simple command. A pattern of one word ("stripe", "psql")
+// would then hit "grep -rn stripe app" and "pnpm add stripe", so it matches only where the word is the program being run.
 export function commandMatches(command, patternText) {
   const pattern = tokenize(patternText);
   if (pattern.length === 0) return false;
+  const oneWord = pattern.filter((w) => w !== '*').length === 1;
   return simpleCommands(command).some((tokens) => {
-    for (let i = 0; i < tokens.length; i++) if (matchAt(tokens, i, pattern)) return true;
+    const positions = oneWord ? programPositions(tokens) : null;
+    for (let i = 0; i < tokens.length; i++) {
+      if (positions && !positions.has(i)) continue;
+      if (matchAt(tokens, i, pattern)) return true;
+    }
     return false;
   });
 }
