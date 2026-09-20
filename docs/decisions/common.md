@@ -1,4 +1,6 @@
-# 3スキル共通の公開仕様 裁定記録
+# スキル共通の公開仕様 裁定記録
+
+> 追記（2026-09-20）: `project-design-reboot` にも、C1・C3・C4・C5 をそのまま適用する。C2 については、reboot は Skill 1 と同じく基盤中立とする（[project-design-reboot.md](project-design-reboot.md) の R6）。
 
 `project-design-opening`（Skill 1）・`project-design-harness`（Skill 2）・Skill 3 に共通する公開仕様の判断を、確定した順に記録する。
 個別スキルの裁定は [project-design-opening.md](project-design-opening.md) と [project-design-harness.md](project-design-harness.md)。

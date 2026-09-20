@@ -4,8 +4,11 @@ AI エージェントに開発を任せるための Skill 集。
 曖昧なアイデアから、Agent が安全に開発を進められる状態までを、3つの Skill の連鎖で整える。
 
 ```text
-曖昧なアイデア
-  → project-design-opening    プロジェクトの境界を定義する            docs/project-definition.md
+曖昧なアイデア（新規）
+  → project-design-opening    対話でプロジェクトの境界を定義する      docs/project-definition.md
+既存のリポジトリ
+  → project-design-reboot     走査と対話でプロジェクトの境界を定義する  docs/project-definition.md
+      ↓（どちらから来ても、ここから先は同じ）
   → project-design-harness    Agent とハーネスを作る                  .claude/ 一式、docs/agent-architecture.md
   → 詳細設計の Skill           機能・要件・システム設計を詰める（構想中）  docs/system-design.md ほか
   → 開発
@@ -21,6 +24,7 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 | Skill | 状態 | 概要 |
 |---|---|---|
 | [project-design-opening](project-design-opening/) | 初版（作者の実プロジェクトで試用する前の段階） | アイデアを対話で整理し、`docs/project-definition.md` を作る |
+| [project-design-reboot](project-design-reboot/) | 初版（作者の実プロジェクトで試用する前の段階） | 既存のリポジトリを走査し、コードから分からないことだけを聞いて、同じ `docs/project-definition.md` を作る |
 | [project-design-harness](project-design-harness/) | 初版（作者の実プロジェクトで試用する前の段階） | 定義を入力に、開発を担う Agent・権限・検証・状態管理を `.claude/` 以下に作る。Claude Code 専用 |
 | 詳細設計の Skill | 構想中 | 上の2つを土台に、機能・要件・システム設計を詰める |
 
@@ -31,13 +35,28 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 - **決めること**: 目的とスコープ、システム境界、技術（言語・ランタイム・パッケージマネージャ・主要フレームワーク・DB 種別・デプロイ先種別）、リスク（外部作用・不可逆な操作・機微情報）、環境、リポジトリ構成、運用前提
 - **決めないこと**: 詳細な機能一覧、画面仕様、API、DB スキーマ、実装手順。話に出た場合は要点だけ持ち越しメモに残す
 - **対象**: 新規プロジェクト。種類は問わない（Web サービス、CLI、ライブラリ、デスクトップアプリ、モバイルアプリ、バッチ処理など）
-- **対象外**: 既にコードがある既存プロジェクト。後付けでの導入には対応していない
+- **対象外**: 既にコードがある既存プロジェクト。そちらは `project-design-reboot` を使う
 - **動作する基盤**: 特定のエージェント基盤に依存しない。ファイルの読み書きができるエージェントであれば使える
 
 固定の質問票を上から聞くのではなく、説明から読み取れることは聞かず、足りない項目だけを聞く。
 推測で埋めた項目は、最後に一覧で見せて確認を取る。
 
 成果物の例は [project-design-opening/assets/example.md](project-design-opening/assets/example.md)。
+
+### project-design-reboot
+
+既にコードがあるプロジェクトを走査し、`project-design-opening` が作るものと同じ書式のプロジェクト定義を作る。既存プロジェクトにハーネスを入れるときの入口。
+
+- **先に読む**: 構成ファイル、依存の定義、CI とデプロイの設定、環境変数の雛形から、システム境界・技術・環境・リポジトリ構成を読み取る。lockfile を見れば分かることは聞かない
+- **コードから分からないことだけ聞く**: やらないこと、制約、運用前提、そしてリスク。質問は多くて 3〜5 回
+- **「見つからなかった」を「無い」と書かない**: 管理画面からの手動デプロイや、本番 DB への手作業の接続は、リポジトリに痕跡を残さない。リスクが無いと書くのは、聞いて確認が取れたときだけ
+- **読み取ったことは、根拠つきで見せて確認を取る**: 使われていない依存や、移行の途中の古い設定を、事実として固定しない。コードとユーザーの答えが食い違ったら、根拠を見せて確かめる
+- **秘密を読まない**: `.env` の中身は読まず、雛形のキーの名前だけを見る
+- **評価も提案もしない**: 書くのは現状の定義。構成の良し悪しや、直し方には触れない
+- **動作する基盤**: 特定のエージェント基盤に依存しない
+
+既存プロジェクトでは道具の名前（Stripe、Prisma、Fly.io など）が具体的に分かるので、次の `project-design-harness` が作る承認と禁止の規則は、新規プロジェクトより具体的になる。
+成果物の例は [project-design-reboot/assets/example.md](project-design-reboot/assets/example.md)。
 
 ### project-design-harness
 
@@ -48,8 +67,8 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 - **必ず入る土台**: 役（主セッション・実装役・調査役）、役ごとの書き込み境界、安全の下限（外部作用は承認、不可逆・機微な操作は禁止、ハーネス自身への書き込みは承認）。承認と禁止は役ごとに効く。実装役は、デプロイや push のような操作を、承認を求めることすらできない。`pnpm exec ...` や `git -C ... push`、`bash -c "..."` のような別の書き方でも、Bash でも PowerShell でも、同じ規則で判定する
 - **選べる重さ**: 土台の上に6段階。L1 タスク契約／L2 地図とコマンド／L3 許可リストと道具の絞り込み／L4 永続状態／L5 完了ゲート・検証役・変更レシート／L6 失敗の分類・トレース・振り返り。標準は L3 で、試作なら下げ、本番運用なら上げる。どのレベルでも安全の下限は同じ
 - **確認は3回だけ**: レベル、Policy 表（どの操作が自動／承認／禁止か）、ファイルの計画。プロジェクトの基本情報は聞き直さない
-- **前提**: Claude Code、Node.js（hook が Node.js のスクリプトのため）、`project-design-opening` で作ったプロジェクト定義。単体では動かない
-- **対象外**: 既にコードがある既存プロジェクトへの後付け。機能・要件・システム設計の判断
+- **前提**: Claude Code、Node.js（hook が Node.js のスクリプトのため）、`project-design-opening` か `project-design-reboot` で作ったプロジェクト定義。単体では動かない
+- **対象外**: 機能・要件・システム設計の判断
 
 既存の `.claude/` や `CLAUDE.md` があっても動く。書く前に「新規作成／変更／そのまま」の計画を見せ、人が書いたものは保つ。
 仕組みで守れないこと（テストの中から本物の外部 API が呼ばれる、など）は、守れるかのように見せず、Policy 表に明記する。
@@ -60,10 +79,11 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 
 ```bash
 npx skills add polites-co-jp/claude-skills --skill project-design-opening
+npx skills add polites-co-jp/claude-skills --skill project-design-reboot
 npx skills add polites-co-jp/claude-skills --skill project-design-harness
 ```
 
-手で入れる場合は、`project-design-opening/` と `project-design-harness/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
+手で入れる場合は、`project-design-opening/`、`project-design-reboot/`、`project-design-harness/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
 （Claude Code なら `~/.claude/skills/` か、プロジェクトの `.claude/skills/`）。
 
 ## 使い方
@@ -74,7 +94,13 @@ npx skills add polites-co-jp/claude-skills --skill project-design-harness
 小さな店舗向けの予約管理を Web で作りたい。カード決済もしたい。
 ```
 
-対話が終わると `docs/project-definition.md` が作られる。続けて、同じフォルダで Claude Code に次のように頼む。
+既存のプロジェクトなら、そのリポジトリでエージェントを開いて、次のように頼む。
+
+```text
+このリポジトリのプロジェクト定義を作って。
+```
+
+どちらの場合も、対話が終わると `docs/project-definition.md` が作られる。続けて、同じフォルダで Claude Code に次のように頼む。
 
 ```text
 このプロジェクトのハーネスを作って。

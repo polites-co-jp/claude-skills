@@ -1,22 +1,22 @@
 ---
 name: project-design-harness
-description: docs/project-definition.md を入力に、そのプロジェクトの開発を担う Agent とハーネス一式を Claude Code 向けに生成する。.claude/ 以下の subagent 定義・settings.json の permissions と hooks・書き込み境界や完了ゲートの hook スクリプト・プロジェクト skill、ルートの CLAUDE.md と .mcp.json、根拠記録 docs/agent-architecture.md を作る。Harness Engineering の考え方（タスク契約、地図、道具の関門、永続状態、承認と禁止、完了の証拠、回復、観測）に基づき、土台＋6段階のレベルから重さを選べる。「ハーネスを作って」「Agent を用意して」「.claude を整えて」「開発を Agent に任せられる状態にして」と言われたとき、project-design-opening でプロジェクト定義を作り終えた直後、コードを書き始める前に必ずこの Skill を使う。「ハーネスのレベルを上げたい／下げたい」「プロジェクト定義が変わったので作り直したい」という再実行にも使う。機能・要件・システム設計といったプロジェクトの設計判断はしない。Claude Code 専用。
+description: docs/project-definition.md を入力に、そのプロジェクトの開発を担う Agent とハーネス一式を Claude Code 向けに生成する。.claude/ 以下の subagent 定義・settings.json の permissions と hooks・書き込み境界や完了ゲートの hook スクリプト・プロジェクト skill、ルートの CLAUDE.md と .mcp.json、根拠記録 docs/agent-architecture.md を作る。Harness Engineering の考え方（タスク契約、地図、道具の関門、永続状態、承認と禁止、完了の証拠、回復、観測）に基づき、土台＋6段階のレベルから重さを選べる。「ハーネスを作って」「Agent を用意して」「.claude を整えて」「開発を Agent に任せられる状態にして」と言われたとき、project-design-opening（新規）か project-design-reboot（既存プロジェクト）でプロジェクト定義を作り終えた直後に、必ずこの Skill を使う。「ハーネスのレベルを上げたい／下げたい」「プロジェクト定義が変わったので作り直したい」という再実行にも使う。機能・要件・システム設計といったプロジェクトの設計判断はしない。Claude Code 専用。
 ---
 
 # プロジェクトのハーネス設計
 
 プロジェクト定義を入力に、そのプロジェクトの開発を担う Agent と、それを取り巻くハーネスを生成する Skill。
 
-- **入力**: `docs/project-definition.md`（`project-design-opening` の成果物。`status: complete` であること）
+- **入力**: `docs/project-definition.md`（`project-design-opening` か `project-design-reboot` の成果物。`status: complete` であること）
 - **出力**: `.claude/` 以下一式、ルートの `CLAUDE.md` と `.mcp.json`、根拠記録 `docs/agent-architecture.md`
 - **扱わないこと**: 機能・要件・システム設計といったプロジェクトの設計判断。プロジェクトの基本情報の聞き取り
-- **前提**: Claude Code。Node.js（生成する hook が Node.js のスクリプトであるため）。新規プロジェクト
+- **前提**: Claude Code。Node.js（生成する hook が Node.js のスクリプトであるため）。プロジェクト定義があること（新規プロジェクトなら `project-design-opening`、既存プロジェクトなら `project-design-reboot` で作る）
 
 ## この Skill の位置づけ
 
 ```text
 曖昧なアイデア
-  → project-design-opening               プロジェクトの境界を定義する
+  → project-design-opening               プロジェクトの境界を定義する（既存プロジェクトなら project-design-reboot）
   → project-design-harness（この Skill）  開発を担う Agent とハーネスを作る
   → 詳細設計の Skill                      機能・要件・システム設計を詰める
   → 開発
@@ -46,7 +46,7 @@ Agent の失敗の多くは、推論の失敗ではなく環境の失敗であ�
 ### 3. プロジェクトの設計に踏み込まない。基本情報を聞き直さない
 
 この Skill がユーザーに聞いてよいのは、ハーネス側の判断だけである（レベル、Policy 表、ファイルの計画）。
-何を作るのか、どの技術を使うのか、どんなリスクがあるのかは、すべてプロジェクト定義から読む。足りなければ、聞き直さずに止まって `project-design-opening` を案内する。聞き取りの手順を2つの Skill に重複させないためだ。
+何を作るのか、どの技術を使うのか、どんなリスクがあるのかは、すべてプロジェクト定義から読む。足りなければ、聞き直さずに止まって、定義を作る Skill（新規なら `project-design-opening`、既存プロジェクトなら `project-design-reboot`）を案内する。聞き取りの手順を2つの Skill に重複させないためだ。
 同様に、機能や画面や API の設計はしない。それは次の詳細設計の仕事である。
 
 ### 4. 安全の下限は、どのレベルでも外さない
@@ -69,8 +69,8 @@ Agent の失敗の多くは、推論の失敗ではなく環境の失敗であ�
 
 | 確かめること | 満たさないとき |
 |---|---|
-| `docs/project-definition.md` がある | コードが既にあるなら「既存プロジェクトへの後付けには対応していない」と伝える。無いなら `project-design-opening` の実行を案内する |
-| frontmatter が `status: complete` | 足りない項目を名指しして、`project-design-opening` の再実行を案内する |
+| `docs/project-definition.md` がある | コードが既にあるなら `project-design-reboot` を、無いなら `project-design-opening` を案内する。この Skill の中で、コードから定義を推定し始めない |
+| frontmatter が `status: complete` | 足りない項目を名指しして、定義を作った Skill（区分 F が「既存」なら `project-design-reboot`、そうでなければ `project-design-opening`）の再実行を案内する |
 | 区分 A〜G の全行の状態が `decided` / `assumed` / `none` / `deferred` のいずれか | 同上 |
 | 区分 C の6項目と区分 D の3項目に `deferred` が無い | 同上。この2区分は、権限と安全策を具体的に書くための材料なので、持ち越しのままでは進めない |
 | `node --version` が通る | Node.js の導入を案内する |
@@ -82,7 +82,7 @@ Agent の失敗の多くは、推論の失敗ではなく環境の失敗であ�
 ここではユーザーに何も聞かない。プロジェクト定義から、次の3つを決める。
 
 1. **Policy**。[references/policy.md](references/policy.md) の手順で、承認する操作と禁止する操作を導く。規則にするのは、**プロジェクト定義に名前が出ている道具**のコマンドだけ。道具が種別でしか書かれていない外部作用（「コンテナを動かせるクラウド」など）は、候補を並べて規則にせず、「道具が未定のため、仕組みでは止められない」として表に載せる。各行に、根拠にしたプロジェクト定義の行を付ける
-2. **役の構成**。[references/agents.md](references/agents.md) の規則で決める。基本は主セッション・実装役・調査役。区分 C が構成要素ごとに分かれていれば実装役を分ける。1 で、区分 D を根拠にした承認つきのコマンドが1つ以上できていれば、運用役を足す。構成要素の数は、分ける理由にならない。分けたら、防ぐ失敗を言葉にする
+2. **役の構成と書き込み境界**。[references/agents.md](references/agents.md) の規則で決める。区分 F に「設計文書の場所」の行があれば（既存プロジェクト）、その場所も設計文書の置き場として扱う。基本は主セッション・実装役・調査役。区分 C が構成要素ごとに分かれていれば実装役を分ける。1 で、区分 D を根拠にした承認つきのコマンドが1つ以上できていれば、運用役を足す。構成要素の数は、分ける理由にならない。分けたら、防ぐ失敗を言葉にする
 3. **地図とコマンド**。区分 B・F から「知りたいこと → 場所」の対応を、区分 C・E からコマンドの一覧と検証コマンドの名前（例: `pnpm run verify`）を、区分 F から検証コマンドを実行する場所を決める
 
 同じプロジェクト定義からは、同じ構成が出ることを目指す。references の規則で決まらないことを、その場の推測で足さない。決まらなければ、足さない方を選ぶ。
@@ -160,6 +160,7 @@ Step 1 で導いた Policy を、表にして**単独で**見せる。ファイ�
 |---|---|
 | `{{PROJECT_NAME}}` | プロジェクト定義の題名 |
 | `{{PURPOSE_ONE_LINE}}` | 区分 A の目的を1文に縮めたもの |
+| `{{DESIGN_DIRS}}` | 設計文書の置き場。通常は「`docs/` 以下」。区分 F に「設計文書の場所」があれば、それも含める（例:「`docs/` と `design/` 以下」） |
 | `{{EXTRA_DELEGATIONS}}` | 基本の役のほかに作った役への委任の文。検証役があれば「。実装の結果の検証は `verifier` へ」、運用役があれば「。外部作用のある操作は `operator` へ」。無ければ空 |
 | `{{TOOLCHAIN_COMMANDS}}` | 区分 C から確定しているコマンド（依存の導入、L5 以上なら検証コマンド）。推測のコマンドは入れない |
 | `{{VERIFY_COMMAND}}`、`{{VERIFY_CWD}}` | `harness.json` の `verify` と同じ値。実行場所がルートなら「プロジェクトのルート」。L4 以下では、これらを含む行ごと削る |
@@ -211,7 +212,7 @@ echo '{"harness_probe":true,"tool_name":"Write","tool_input":{"file_path":"docs/
 
 | パターン | 避ける理由 |
 |---|---|
-| プロジェクトの基本情報をユーザーに聞き直す | 聞き取りは `project-design-opening` の仕事。重複させると、片方を直したときにもう片方がずれる。足りなければ止まって案内する |
+| プロジェクトの基本情報をユーザーに聞き直す | 聞き取りは、定義を作る Skill（`project-design-opening`、`project-design-reboot`）の仕事。重複させると、片方を直したときにもう片方がずれる。足りなければ止まって案内する |
 | 構成要素ごとに Agent を作る（Web 担当、API 担当、DB 担当） | 構成要素の数は分ける理由にならない。分ける引き金は、ツールチェーンの違いとリスク階級の違いだけ |
 | 雛形にある部品を、全部生成する | 防ぐ失敗が無い部品は、摩擦だけを足す。運用役、`.mcp.json`、パス別のローカル指示は、条件を満たすときだけ |
 | 決まりを `CLAUDE.md` に書いて済ませる | 文脈は強制ではない。破られたら困る決まりは、hook と permissions に落とす |

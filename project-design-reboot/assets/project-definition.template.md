@@ -4,6 +4,14 @@ status: complete        # draft | complete
 updated: YYYY-MM-DD
 ---
 
+<!--
+（このコメントも、書き出すときに削除する）
+このファイルは写しである。正本は project-design-opening の assets/project-definition.template.md。
+入力契約を変えるときは、正本を直してから、この写しも同じように直す。
+正本との差:
+- 書式の決まりに、根拠の書き方を1行足した
+-->
+
 # Project Definition: [プロジェクト名]
 
 <!--
@@ -12,6 +20,7 @@ updated: YYYY-MM-DD
 - 状態は decided / assumed / none / deferred のいずれか。何語で書いてもこのキーは変えない
 - 該当しない項目は空欄にせず、内容を「なし」、状態を none にする
 - 内容が複数ある項目は行を分ける
+- 走査で読み取った行は、内容の末尾に「（根拠: ファイル名）」を書く。列は足さない
 - このコメントは書き出すときに削除する
 -->
 
