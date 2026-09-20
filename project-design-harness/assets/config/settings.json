@@ -1,0 +1,93 @@
+{
+  "//": "雛形。生成時に、この行を含むすべての \"//\" キーを削除する。deny / ask / allow は references/policy.md の手順で導いた規則に置き換える。区分 E の開発環境が Windows なら、Bash(...) の規則と同じものを PowerShell(...) の形でも書く。",
+  "permissions": {
+    "deny": [
+      "Read(.env*)",
+      "Read(!.env.example)",
+      "Read(!.env.sample)",
+      "Read(!.env.template)",
+      "Read(**/secrets/**)"
+    ],
+    "ask": [],
+    "allow": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "//": "土台",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/write-boundary.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "//": "L5 以上。matcher は、コードを書く役の名前を | でつなぐ。harness.json の verify.roles と一致させる。timeout は verify.timeoutSec より長くする",
+        "matcher": "implementer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/completion-gate.mjs"
+            ],
+            "timeout": 1200,
+            "statusMessage": "完了の証拠を確かめています"
+          }
+        ]
+      },
+      {
+        "//": "L6。すべての役の終了を記録する",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/trace.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "//": "L5 以上。検証が通らないまま終わった委任があれば、その事実を主セッションに届ける",
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/completion-gate.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "//": "L6",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/trace.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

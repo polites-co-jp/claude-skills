@@ -6,7 +6,7 @@ AI エージェントに開発を任せるための Skill 集。
 ```text
 曖昧なアイデア
   → project-design-opening    プロジェクトの境界を定義する            docs/project-definition.md
-  → project-design-harness    Agent とハーネスを作る（準備中）         .claude/ 一式、docs/agent-architecture.md
+  → project-design-harness    Agent とハーネスを作る                  .claude/ 一式、docs/agent-architecture.md
   → 詳細設計の Skill           機能・要件・システム設計を詰める（構想中）  docs/system-design.md ほか
   → 開発
 ```
@@ -21,7 +21,7 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 | Skill | 状態 | 概要 |
 |---|---|---|
 | [project-design-opening](project-design-opening/) | 初版（作者の実プロジェクトで試用する前の段階） | アイデアを対話で整理し、`docs/project-definition.md` を作る |
-| project-design-harness | 準備中 | 定義を入力に、開発を担う Agent・権限・検証・状態管理を `.claude/` 以下に作る。Claude Code 専用 |
+| [project-design-harness](project-design-harness/) | 初版（作者の実プロジェクトで試用する前の段階） | 定義を入力に、開発を担う Agent・権限・検証・状態管理を `.claude/` 以下に作る。Claude Code 専用 |
 | 詳細設計の Skill | 構想中 | 上の2つを土台に、機能・要件・システム設計を詰める |
 
 ### project-design-opening
@@ -39,15 +39,31 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 
 成果物の例は [project-design-opening/assets/example.md](project-design-opening/assets/example.md)。
 
+### project-design-harness
+
+プロジェクト定義を入力に、そのプロジェクトの開発を担う Agent とハーネスを、Claude Code 向けに生成する。
+
+- **生成するもの**: `.claude/` 以下の subagent 定義・`settings.json`（permissions と hooks）・hook スクリプト・プロジェクト skill、ルートの `CLAUDE.md`、根拠記録 `docs/agent-architecture.md`
+- **前提にする分業**: 設計書駆動。ユーザーと話す主セッションが設計の対話役を務めて `docs/` を更新し、コードは実装役の subagent だけが書く。この分担は指示ではなく hook で守らせる
+- **必ず入る土台**: 役（主セッション・実装役・調査役）、役ごとの書き込み境界、安全の下限（外部作用は承認、不可逆・機微な操作は禁止、ハーネス自身への書き込みは承認）。承認と禁止は役ごとに効く。実装役は、デプロイや push のような操作を、承認を求めることすらできない。`pnpm exec ...` や `git -C ... push`、`bash -c "..."` のような別の書き方でも、Bash でも PowerShell でも、同じ規則で判定する
+- **選べる重さ**: 土台の上に6段階。L1 タスク契約／L2 地図とコマンド／L3 許可リストと道具の絞り込み／L4 永続状態／L5 完了ゲート・検証役・変更レシート／L6 失敗の分類・トレース・振り返り。推奨は L3
+- **確認は3回だけ**: レベル、Policy 表（どの操作が自動／承認／禁止か）、ファイルの計画。プロジェクトの基本情報は聞き直さない
+- **前提**: Claude Code、Node.js（hook が Node.js のスクリプトのため）、`project-design-opening` で作ったプロジェクト定義。単体では動かない
+- **対象外**: 既にコードがある既存プロジェクトへの後付け。機能・要件・システム設計の判断
+
+既存の `.claude/` や `CLAUDE.md` があっても動く。書く前に「新規作成／変更／そのまま」の計画を見せ、人が書いたものは保つ。
+仕組みで守れないこと（テストの中から本物の外部 API が呼ばれる、など）は、守れるかのように見せず、Policy 表に明記する。
+
 ## 導入
 
 [skills CLI](https://github.com/vercel-labs/skills) を使う場合:
 
 ```bash
 npx skills add polites-co-jp/claude-skills --skill project-design-opening
+npx skills add polites-co-jp/claude-skills --skill project-design-harness
 ```
 
-手で入れる場合は、`project-design-opening/` フォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
+手で入れる場合は、`project-design-opening/` と `project-design-harness/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
 （Claude Code なら `~/.claude/skills/` か、プロジェクトの `.claude/skills/`）。
 
 ## 使い方
@@ -58,7 +74,14 @@ npx skills add polites-co-jp/claude-skills --skill project-design-opening
 小さな店舗向けの予約管理を Web で作りたい。カード決済もしたい。
 ```
 
-対話が終わると `docs/project-definition.md` が作られる。
+対話が終わると `docs/project-definition.md` が作られる。続けて、同じフォルダで Claude Code に次のように頼む。
+
+```text
+このプロジェクトのハーネスを作って。
+```
+
+レベルと Policy 表とファイルの計画を確認すると、`.claude/` 以下が生成される。生成後は Claude Code を再起動する。
+以後は、主セッションに設計や変更を相談すると、設計文書を更新したうえで実装役に委任する流れになる。
 
 ## 設計の記録
 
