@@ -5,6 +5,7 @@
 //  2. Writes: each role (main session, each subagent) may only write where its rules allow.
 //  3. Harness files (.claude/, CLAUDE.md, .mcp.json) are never written silently:
 //     the main session must get human approval, subagents are refused.
+//     The one exception is the skill's own installer, which the main session runs after the user approved the file plan.
 // Decisions are made here, outside the model's reasoning, so they hold even when instructions are forgotten.
 // Shell commands are inspected on a best-effort basis; file tools are checked exactly.
 import {
@@ -20,6 +21,10 @@ const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 // Running a script file (node .claude/hooks/x.mjs, node --check ...) is not inline code and is left alone.
 const HARNESS_MENTION = /(^|[\s"'=/\\(])(\.claude[/\\]|CLAUDE(\.local)?\.md|\.mcp\.json)/i;
 const CAN_WRITE_UNSEEN = /\b(node|deno|bun|python3?|perl|ruby|php|bash|sh|zsh|pwsh|powershell)(\.exe)?\b[^;|&\n]*\s(-e|-c|-p|-r|--eval|--print|-Command|-EncodedCommand)(\s|$)|\bgit\s+(checkout|restore|rm|mv|apply|stash|reset|clean)\b/i;
+
+// The installer of the project-design-harness skill rewrites the harness in one step, after the user has approved
+// the file plan in the main session. A subagent cannot get that approval, so it may not run the installer.
+const INSTALLER = /harness-install\.mjs/i;
 
 const input = readInput();
 const config = loadConfig();
@@ -82,6 +87,7 @@ if (SHELL_TOOLS.has(tool)) {
     const rel = toProjectPath(target, input.cwd);
     if (rel !== null) checkWrite(rel);
   }
+  if (!isMain && INSTALLER.test(command)) protectedWrite('.claude/, CLAUDE.md, .mcp.json');
   if (HARNESS_MENTION.test(command) && CAN_WRITE_UNSEEN.test(command)) protectedWrite('.claude/, CLAUDE.md, .mcp.json');
   process.exit(0);
 }

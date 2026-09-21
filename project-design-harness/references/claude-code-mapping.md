@@ -102,7 +102,9 @@ subagent の中で発火したときは `agent_id` と `agent_type` が加わる
 
 - Claude Code は、少数のパスへの書き込みを**保護パス**として扱い、自動承認しない。ディレクトリでは `.git`、`.vscode`、`.idea`、`.husky`、`.claude`（`.claude/worktrees` を除く）など。ファイルでは `.mcp.json`、`.claude.json`、`.gitconfig`、`.npmrc`、各種シェルの設定ファイルなど
 - 保護パスへの書き込みは、`default` と `acceptEdits` では確認、`auto` では分類器の判断、`dontAsk` では拒否、`bypassPermissions` では許可
-- `permissions.allow` の規則では、保護パスへの書き込みを事前承認できない
+- `permissions.allow` の規則では、保護パスへの書き込みを事前承認できない。保護パスの検査は、許可の規則より先に走る。確認の画面には「このセッションでは、Claude が自分の設定を編集することを許可する」の選択肢があり、選ぶと、そのセッションの以後の `.claude/` への書き込みは確認されない
+- 保護パスの検査の対象は、編集ツールと、書き込み先が読めるシェルのコマンド（リダイレクト、`tee`、`cp`、`mv` など）である。**スクリプトの中の書き込みは、検査されない**。このスキルは、承認された計画を同梱のスクリプト（`scripts/harness-install.mjs`）で一括して反映することで、ファイルごとの確認を避ける
+- **skill の frontmatter の `allowed-tools`** は、その skill を呼び出したターンのあいだ、挙げたツールを確認なしで使えるようにする。利用者が次のメッセージを送ると消える（`AskUserQuestion` への回答は、同じターンの中である）。`Bash(...)` の規則の中の `${CLAUDE_SKILL_DIR}` は、skill のフォルダに置き換わる。本文の側でも同じ変数を使えば、同梱のスクリプトを確認なしで実行できる（出典: <https://code.claude.com/docs/en/skills.md>）。規則に一致しなかった場合は、通常の確認が1回出る
 - **`CLAUDE.md` は保護パスに含まれない**。このスキルの書き込み境界 hook は、`CLAUDE.md` を保護対象に加え、さらに subagent からのハーネスへの書き込みを一律に拒否する
 - `permissions` の規則はセッション全体に効き、subagent ごとには分けられない
 - `Bash(...)` と `PowerShell(...)` は別の規則。PowerShell ツールがある環境（Windows）では、同じ規則を両方の形で書く必要がある。hook はツール名を見て両方を同じ規則で判定するので、この違いの影響を受けない
