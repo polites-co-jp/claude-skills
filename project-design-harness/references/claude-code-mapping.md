@@ -108,6 +108,7 @@ subagent の中で発火したときは `agent_id` と `agent_type` が加わる
 - **`CLAUDE.md` は保護パスに含まれない**。このスキルの書き込み境界 hook は、`CLAUDE.md` を保護対象に加え、さらに subagent からのハーネスへの書き込みを一律に拒否する
 - `permissions` の規則はセッション全体に効き、subagent ごとには分けられない
 - `Bash(...)` と `PowerShell(...)` は別の規則。PowerShell ツールがある環境（Windows）では、同じ規則を両方の形で書く必要がある。hook はツール名を見て両方を同じ規則で判定するので、この違いの影響を受けない
+- `Bash` の `allow` の規則は、先頭に環境変数の代入があると一致しない（`NODE_ENV=test` のような既知の安全な変数を除く）。`deny` と `ask` の規則は、どんな代入があっても読み飛ばして一致する。だから `DATABASE_URL=... prisma migrate reset` は、permissions の `deny` では止まり、hook の `localOk` を効かせるには permissions に書かないしかない
 - `Bash` の規則は、Claude が普通に書く形の呼び出しに一致するだけで、同じプログラムを別の形で呼び出せば一致しない。公式に「安全の境界ではない」と明記されている。公式が挙げる、`Bash(git push *)` で止まらない形は、`git -C . push`、`git -c push.default=current push`、`git 'push'`、`sh -c '...'`、絶対パスでの呼び出し。このスキルの hook は、これらの形（プログラム名の後ろの全体オプション、引用符、シェルに文字列で渡されたコマンド、`eval`、コマンド置換、絶対パス）を読む
 
 ## CLAUDE.md と rules

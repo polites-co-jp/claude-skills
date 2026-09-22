@@ -55,6 +55,7 @@ source: docs/project-definition.md
 | | D: | 不可逆・機微 | 禁止 | hook `…` |
 | 秘密情報ファイルを読む | 共通 | 機微 | 禁止 | permissions `Read(.env*)` ほか |
 | ハーネス自身の変更 | 共通 | 機微 | 承認（subagent は禁止） | hook の保護パス |
+| 保護ブランチ（main・master・develop）へのコミット・マージ・push | 共通（git） | 不可逆・機微 | 禁止。作業ブランチからプルリクエストで入れる | hook `git.protectedBranches`、permissions `deny` |
 | | D: | | **仕組みでは止められない** | （守り方） |
 
 自動で許可する日常の操作: （「日常の操作で止まらないようにする」を入れた場合。`allow` に入れたコマンドの一覧。役ごとには分けられないので、すべての役に効く）

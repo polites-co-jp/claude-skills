@@ -77,7 +77,7 @@
 
 | 生成物 | 内容 |
 |---|---|
-| `.claude/settings.json` の `allow` | ツールチェーンの日常操作の許可リスト。区分 C・E から導く（[policy.md](policy.md)）。開発環境が Windows なら `PowerShell(...)` の形でも書く |
+| `.claude/settings.json` の `allow` | 日常の操作の許可リスト。依存の導入、テストと画面テストの実行、コンテナの操作、検索、設計文書への書き込み、作業ブランチへのコミットと push。区分 C・E と git から導く（[policy.md](policy.md)）。開発環境が Windows なら `PowerShell(...)` の形でも書く |
 | 各 subagent の `disallowedTools` | `.mcp.json` を作った場合だけ、その役に要らない MCP サーバーをサーバー単位で外す。コマンドの制限には使わない |
 | `.mcp.json` | 区分 B の外部サービスに対応する MCP サーバーを使う、と利用者が明示したときだけ。推測で足さない |
 

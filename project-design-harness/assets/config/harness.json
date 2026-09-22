@@ -40,7 +40,16 @@
     }
   },
   "commands": [],
+  "localHosts": [],
+  "git": { "protectedBranches": ["main", "master", "develop"] },
   "messages": {
+    "branchCommit": "現在のブランチ「{branch}」は保護ブランチです。ここには直接コミットしません（{sub}）。git switch -c feature/<短い名前> で作業ブランチを作ってから、同じ操作をやり直してください。未コミットの変更は、作業ブランチにそのまま付いてきます。保護ブランチへ取り込むのは、プルリクエストです。",
+    "branchPush": "保護ブランチ「{branch}」への push は、このプロジェクトでは禁止です。作業ブランチに push して、プルリクエストで取り込んでください。",
+    "branchPushAll": "複数のブランチをまとめて push する形（--all、--mirror、--prune、パターン）は、保護ブランチを含みうるので禁止です。ブランチを1つ指定してください。",
+    "pushDelete": "リモートのブランチの削除（{ref}）",
+    "pushTag": "タグの push（リリースを起動しうる）",
+    "pushUnknownRef": "ローカルのブランチではないものの push（{ref}）",
+    "pushLabel": "リモートへの push",
     "protectedAsk": "ハーネスのファイル（{path}）を変更しようとしています。ハーネスの変更には、あなたの承認が必要です。",
     "protectedDeny": "subagent はハーネスのファイル（{path}）を変更できません。必要な変更は主セッションに報告してください。",
     "commandDeny": "この操作は、このプロジェクトでは禁止されています: {label}。別の方法で実現しようとせず、必要であることを報告してください。",

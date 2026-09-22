@@ -1,5 +1,6 @@
 // Shared helpers for the harness hooks. No dependencies beyond Node.js built-ins.
 // Installed at <project>/.claude/hooks/lib/harness.mjs
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -262,25 +263,222 @@ function programPositions(tokens) {
 
 // A pattern of two or more words is looked for anywhere in a simple command. A pattern of one word ("stripe", "psql")
 // would then hit "grep -rn stripe app" and "pnpm add stripe", so it matches only where the word is the program being run.
-export function commandMatches(command, patternText) {
+function tokensMatch(tokens, patternText) {
   const pattern = tokenize(patternText);
   if (pattern.length === 0) return false;
   const oneWord = pattern.filter((w) => w !== '*').length === 1;
-  return simpleCommands(command).some((tokens) => {
-    const positions = oneWord ? programPositions(tokens) : null;
-    for (let i = 0; i < tokens.length; i++) {
-      if (positions && !positions.has(i)) continue;
-      if (matchAt(tokens, i, pattern)) return true;
-    }
-    return false;
-  });
+  const positions = oneWord ? programPositions(tokens) : null;
+  for (let i = 0; i < tokens.length; i++) {
+    if (positions && !positions.has(i)) continue;
+    if (matchAt(tokens, i, pattern)) return true;
+  }
+  return false;
 }
 
-// config.commands: [{ match, decision: "deny" | "ask", roles?: [...], label? }]. A deny rule wins over an ask rule.
+export function commandMatches(command, patternText) {
+  return simpleCommands(command).some((tokens) => tokensMatch(tokens, patternText));
+}
+
+// ---- where a command points: the local machine (test database, container) or somewhere else ----
+// The text of "prisma migrate reset" does not say which database it resets. When the command names its target
+// (DATABASE_URL=postgresql://...@localhost/..., psql -h 127.0.0.1, docker compose exec db psql), that can be read.
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0', 'host.docker.internal']);
+const REMOTE_PROGRAMS = new Set(['ssh', 'kubectl', 'oc', 'gcloud', 'aws', 'az', 'fly', 'flyctl', 'heroku', 'railway', 'vercel', 'wrangler']);
+const LOCAL_DAEMONS = new Set(['docker', 'podman', 'nerdctl', 'docker-compose', 'podman-compose']);
+const HOST_FLAGS = new Set(['-h', '--host', '--hostname']);
+
+function urlHost(text) {
+  const m = /^[A-Za-z][A-Za-z0-9+.:-]*:\/\/(?:[^@/\s]*@)?(\[[^\]]*\]|[^:/\s?#]*)/.exec(text);
+  return m ? m[1] : null;
+}
+
+// "local" when every named target is this machine, "remote" when any is not, "unknown" when nothing is named.
+export function targetLocality(tokens, localHosts = []) {
+  const known = new Set([...LOCAL_HOSTS, ...localHosts.map((h) => String(h).toLowerCase())]);
+  const first = tokens.findIndex((t) => !ASSIGNMENT.test(t));
+  const program = first === -1 ? '' : programName(tokens[first]);
+  if (REMOTE_PROGRAMS.has(program)) return 'remote';
+  let container = false;
+  let remote = false;
+  if (LOCAL_DAEMONS.has(program)) {
+    const rest = tokens.slice(first + 1);
+    if (rest.some((t) => /^(--context|-H|--host)(=|$)/.test(t))) remote = true; // a remote daemon
+    container = rest.some((t) => t === 'exec' || t === 'run');
+  }
+  const hosts = [];
+  const unquote = (v) => v.replace(/^["']|["']$/g, '');
+  const fromUrl = (v) => hosts.push(urlHost(unquote(v)) ?? '?'); // an unreadable URL is not treated as local
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    const env = /^([A-Z_][A-Z0-9_]*)=([\s\S]*)$/.exec(tok); // FOO=bar; conninfo "host=x" is lowercase
+    if (env) {
+      const [, name, raw] = env;
+      const value = unquote(raw);
+      if (/^DOCKER_(HOST|CONTEXT)$/.test(name)) remote = true;
+      else if (value.includes('://')) fromUrl(value);
+      else if (/^(file|sqlite):/i.test(value)) hosts.push('');
+      else if (/HOST$/.test(name) && value) hosts.push(value); // PGHOST, DB_HOST, MYSQL_HOST
+      continue;
+    }
+    if (tok.includes('://')) { fromUrl(tok); continue; }
+    if (/^["']?(file|sqlite):/i.test(tok)) { hosts.push(''); continue; }
+    const eq = /^--?(host|hostname)=(.+)$/i.exec(tok);
+    if (eq) { hosts.push(eq[2]); continue; }
+    if (HOST_FLAGS.has(tok) && tokens[i + 1]) { hosts.push(tokens[i + 1]); i++; continue; }
+    if (/^-h[^-]/.test(tok)) { hosts.push(tok.slice(2)); continue; } // mysql -hlocalhost
+    const conn = /(^|[\s;])host=([^\s;]+)/i.exec(tok); // psql "host=localhost dbname=x"
+    if (conn) hosts.push(conn[2]);
+  }
+  if (remote) return 'remote';
+  const isLocal = (h) => {
+    const host = String(h).toLowerCase().replace(/^\[|\]$/g, '');
+    if (host === '') return true; // unix socket, SQLite file
+    if (!/^[\w.:-]+$/.test(host)) return false;
+    if (known.has(host) || host.endsWith('.localhost')) return true;
+    return container && !host.includes('.') && !host.includes(':') && !/^\d+$/.test(host); // a service name on the container network
+  };
+  if (hosts.length) return hosts.every(isLocal) ? 'local' : 'remote';
+  return container ? 'local' : 'unknown';
+}
+
+// config.commands: [{ match, decision: "deny" | "ask", roles?: [...], label?, localOk? }]. A deny rule wins over an ask rule.
+// A rule with localOk does not apply when the command visibly targets this machine (the test database, a container).
 export function findCommandRule(config, command) {
   const rules = (config && config.commands) || [];
-  const hits = rules.filter((r) => r && r.match && commandMatches(command, r.match));
+  const localHosts = (config && config.localHosts) || [];
+  const hits = [];
+  for (const tokens of simpleCommands(command)) {
+    for (const r of rules) {
+      if (!r || !r.match || !tokensMatch(tokens, r.match)) continue;
+      if (r.localOk && targetLocality(tokens, localHosts) === 'local') continue;
+      hits.push(r);
+    }
+  }
   return hits.find((r) => r.decision === 'deny') || hits.find((r) => r.decision === 'ask') || null;
+}
+
+// ---- git: protected branches ----
+// Work happens on feature branches. Committing on main/master/develop, or pushing to them, is refused;
+// they receive changes through pull requests (an approved operation).
+
+const gitCache = new Map();
+function git(dir, args) {
+  const key = `${dir}\0${args.join('\0')}`;
+  if (!gitCache.has(key)) {
+    let out = null;
+    try {
+      out = execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim();
+    } catch { /* not a repository, git missing, or a non-zero exit */ }
+    gitCache.set(key, out);
+  }
+  return gitCache.get(key);
+}
+export const isRepository = (dir) => git(dir, ['rev-parse', '--git-dir']) !== null;
+export function currentBranch(dir) {
+  const b = git(dir, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  return b && b !== 'HEAD' ? b : null; // null when detached
+}
+const isLocalBranch = (dir, name) => git(dir, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]) !== null;
+
+const GIT_VALUE_OPTS = new Set(['-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env']);
+const COMMITTING = new Set(['commit', 'merge', 'rebase', 'cherry-pick', 'revert', 'am']);
+const PUSH_VALUE_OPTS = new Set(['-o', '--push-option', '--receive-pack', '--exec', '--repo']);
+
+// One simple command as a git invocation: { dir, sub, args }, or null. "-C dir" moves the repository.
+export function gitCommand(tokens, cwd) {
+  let i = 0;
+  while (i < tokens.length && (ASSIGNMENT.test(tokens[i]) || WRAPPERS.has(programName(tokens[i])))) i++;
+  if (i >= tokens.length || programName(tokens[i]) !== 'git') return null;
+  let dir = cwd;
+  let j = i + 1;
+  while (j < tokens.length && tokens[j].startsWith('-')) {
+    const t = tokens[j];
+    if (t === '-C' && tokens[j + 1]) { dir = path.resolve(dir, tokens[j + 1]); j += 2; continue; }
+    if (t.startsWith('-C') && t.length > 2) { dir = path.resolve(dir, t.slice(2)); j++; continue; }
+    j += GIT_VALUE_OPTS.has(t) ? 2 : 1;
+  }
+  if (j >= tokens.length) return null;
+  return { dir, sub: tokens[j].toLowerCase(), args: tokens.slice(j + 1) };
+}
+
+// The git subcommands a shell text runs ("push", "commit", ...), for role checks.
+export function gitSubcommands(command, cwd) {
+  return simpleCommands(command).map((t) => gitCommand(t, cwd)).filter(Boolean).map((g) => g.sub);
+}
+
+export function pushPlan(args) {
+  const plan = { all: false, tags: false, del: false, positional: [] };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--') { plan.positional.push(...args.slice(i + 1)); break; }
+    if (a.startsWith('-')) {
+      const name = a.split('=')[0];
+      if (['--all', '--branches', '--mirror', '--prune'].includes(name)) plan.all = true;
+      else if (name === '--tags' || name === '--follow-tags') plan.tags = true;
+      else if (name === '--delete' || name === '-d') plan.del = true;
+      if (PUSH_VALUE_OPTS.has(a)) i++;
+      continue;
+    }
+    plan.positional.push(a);
+  }
+  plan.refspecs = plan.positional.slice(1); // positional[0] is the remote
+  return plan;
+}
+
+// { decision: "deny" | "ask", key, vars } for the first git command that touches a protected branch, or null.
+// "ask" is for pushes that are not a plain branch push: tags (they can start a release) and remote branch deletion.
+export function gitBranchCheck(config, command, cwd) {
+  const gitConfig = (config && config.git) || {};
+  const protectedBranches = Array.isArray(gitConfig.protectedBranches) ? gitConfig.protectedBranches : ['main', 'master', 'develop'];
+  if (protectedBranches.length === 0) return null;
+  const isProtected = (name) => protectedBranches.some((p) => wordMatches(p, name));
+  let ask = null;
+  for (const tokens of simpleCommands(command)) {
+    const g = gitCommand(tokens, cwd);
+    if (!g) continue;
+    if (COMMITTING.has(g.sub)) {
+      const branch = currentBranch(g.dir);
+      if (branch && isProtected(branch)) return { decision: 'deny', key: 'branchCommit', vars: { branch, sub: g.sub } };
+      continue;
+    }
+    if (g.sub !== 'push') continue;
+    const plan = pushPlan(g.args);
+    if (plan.all) return { decision: 'deny', key: 'branchPushAll', vars: {} };
+    const repo = isRepository(g.dir);
+    const current = repo ? currentBranch(g.dir) : null;
+    const strip = (r) => r.replace(/^\+/, '').replace(/^refs\/heads\//, '');
+    if (plan.del) {
+      const names = plan.refspecs.map((r) => strip(r).split(':').pop());
+      const hit = names.find(isProtected);
+      if (hit) return { decision: 'deny', key: 'branchPush', vars: { branch: hit } };
+      ask = ask || { decision: 'ask', key: 'pushDelete', vars: { ref: names.join(', ') } };
+      continue;
+    }
+    const targets = [];
+    if (plan.refspecs.length === 0 && current) targets.push(current);
+    for (const raw of plan.refspecs) {
+      const r = raw.replace(/^\+/, '');
+      const colon = r.indexOf(':');
+      const src = strip(colon === -1 ? r : r.slice(0, colon));
+      let dst = strip(colon === -1 ? r : r.slice(colon + 1));
+      if (colon !== -1 && src === '') { // "origin :branch" deletes the remote branch
+        if (isProtected(dst)) return { decision: 'deny', key: 'branchPush', vars: { branch: dst } };
+        ask = ask || { decision: 'ask', key: 'pushDelete', vars: { ref: dst } };
+        continue;
+      }
+      if (src.startsWith('refs/tags/') || dst.startsWith('refs/tags/')) { ask = ask || { decision: 'ask', key: 'pushTag', vars: {} }; continue; }
+      if (dst.includes('*')) return { decision: 'deny', key: 'branchPushAll', vars: {} };
+      if (src === 'HEAD') dst = colon === -1 ? current : dst;
+      if (dst && isProtected(dst)) return { decision: 'deny', key: 'branchPush', vars: { branch: dst } };
+      if (src !== 'HEAD' && repo && !isLocalBranch(g.dir, src)) { ask = ask || { decision: 'ask', key: 'pushUnknownRef', vars: { ref: src } }; continue; }
+      if (dst) targets.push(dst);
+    }
+    const hit = targets.find(isProtected);
+    if (hit) return { decision: 'deny', key: 'branchPush', vars: { branch: hit } };
+    if (plan.tags) ask = ask || { decision: 'ask', key: 'pushTag', vars: {} };
+  }
+  return ask;
 }
 
 const ALL_ARGS_ARE_TARGETS = new Set(['rm', 'rmdir', 'touch', 'mkdir', 'truncate', 'del', 'erase', 'rd', 'mv', 'move',

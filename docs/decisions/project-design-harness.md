@@ -457,6 +457,41 @@ docs/
   - 下書きを書く段階の確認（編集を1つずつ確認するモードのとき）は残る。「このセッションでは編集をすべて許可する」を選べば、最初の1回で済む。
 - 検証: スクリプトは 25 の場面で確かめた（初回、再実行、拒否すべき 16 通りで何も書かれないこと）。hook は 9 シナリオを足して 123。実機の Claude Code で、確認が出ないことまでは確かめていない。
 
+### H38. 日常の操作は止めない。作業はブランチで行い、まとまりごとにコミットして push する（2026-09-23）
+
+作者の指示。(1) テスト DB への種々の処理、コンテナ操作、画面テストの実行、設計文書への書き出し、検索パターンに記号を含むコマンド、メモリ索引への追加は、以後許可を求めずに実行してよい。生成するエージェント設定の参考にせよ。
+(2) git リポジトリが関連づけられているプロジェクトでは、作業のまとまりごとに commit + push するルールを足す。main・master・develop への変更は許可せず、現在のブランチがそれなら、新たに feature ブランチを作るルールにする。
+
+AskUserQuestion で確かめた裁定。
+
+- 適用範囲: **生成するハーネスだけ**。作者との会話（このリポジトリ）での作業のしかたは変えない。常時記憶には足さない。
+- テスト DB の見分け方: **コマンドから分かるときだけ**。接続先がローカル（`localhost`、`127.0.0.1`、コンテナの中、SQLite のファイル）だと文字列から分かる形は承認なし。見えない形は今までどおり。
+  退けた案: プロジェクト定義に「開発環境から本番 DB へ届かない」の行を足し、確定したプロジェクトでは DB の操作をすべて許可する案（opening / reboot の質問が1つ増える）。
+- 作業ブランチへの push: **承認なし**。保護ブランチへの push、強制 push、リモートのブランチの削除は止める。タグの push（リリースを起動しうる）は承認。
+- メモリ索引（プロジェクトの外の記憶ストア）: **何もしない**。生成するハーネスには入れない。プロジェクトの `settings.json` は共有されるファイルで、個人の環境のパスを入れる場所ではない。
+
+実現。
+
+- **保護ブランチ**（hook。git で管理されていれば常に）。`git.protectedBranches`（既定 `main`、`master`、`develop`）へのコミット・マージ・rebase・cherry-pick・revert・am と push は `deny`。
+  hook は、現在のブランチを git に聞く（`git -C <dir> rev-parse --abbrev-ref HEAD`）ので、`git push` だけの形も判定できる。refspec（`HEAD:main`、`feature:main`、`refs/heads/main`、`:main`、`+feature:develop`）、`--all`・`--mirror`・`--prune`・パターンも読む。
+  拒否の文は「作業ブランチを作ってからやり直せ。未コミットの変更はそのまま付いてくる」と、次の一手まで書く。
+- **push の扱い**。作業ブランチへの push は日常の操作（段階 3 以上で `allow`）。push できる役は主セッションと運用役だけ（`git.pushRoles`。他の役は確認なしで拒否）。
+  タグの push、リモートのブランチの削除、ローカルのブランチではないものの push は、hook が `ask`。強制 push は Policy の規則で `deny`（変えない）。
+  H36 の「push は承認つき」を、この裁定で改める。作業ブランチへの push は本番に届かず、戻せる。本番に届く経路（保護ブランチ、PR のマージ、タグ）だけを関門にする。
+- **作業の流れ**。生成ブロックの手順 8 を「作業ブランチにコミットし、push する」に、作業ブランチの決まりを箇条書きに足す（`{{COMMIT_STEP}}`、`{{BRANCH_RULE}}`。git の有無、リモートの有無で出し分け）。
+- **`localOk`**（hook）。DB を対象にする規則（`psql`、`prisma migrate dev/reset`、`pnpm * db:reset` など）に付ける。コマンドの文字列から接続先を読み、ローカルなら規則を当てはめない。
+  読むのは、URL のホスト（環境変数の代入の中、引数、`docker run -e` の値）、`-h`・`--host`・conninfo の `host=`、`*HOST=` の代入、`file:`／`sqlite:`。
+  コンテナの中（`docker compose exec/run`、`docker exec/run`）はローカル。`ssh`・`kubectl`・`gcloud`・`fly` などの先、`docker --context`、`DOCKER_HOST=` は外（向こう側の `localhost` は、こちらの `localhost` ではない）。
+  読めない URL（変数、引用符の崩れ）は外として扱う（フェイルクローズ）。
+  `localOk` の規則は permissions には書かない。permissions の `deny`・`ask` は環境変数の代入を読み飛ばして一致するので、ローカルを指した形まで止めてしまう（公式ドキュメントで確認）。
+- **日常の操作の許可リスト**に足したもの。コンテナ操作（`docker compose *`、`docker build/run/exec/ps/logs/stop/start/restart/rm/rmi/images/volume/network *`。`push`・`login`・`context` は除く）、画面テスト（区分 C にあれば Playwright / Cypress）、検索（`grep`、`rg`、`find`、`git grep`）、設計文書への書き込み（`Edit(docs/**)` と区分 F の設計文書の場所）、git の作業ブランチの操作（`switch`、`checkout`、`stash`、`fetch`、`pull`、`merge`、`rebase`、`tag`、リモートがあれば `push`）。
+- 退けた案: 保護ブランチにいる間はファイルの編集も止める案（判定のたびに git を呼ぶ。コミットの時点で止めれば、変更は作業ブランチに持っていける）／
+  `git commit` を役ごとに止める案（`allow` は役ごとに分けられず、hook で止めると実装役の正当な回復手段まで狭める。subagent がコミットしないことは、指示で守る。H36 のまま）／
+  DB の操作に「テスト用」の印（scripts の名前など）を要求する案（プロジェクトごとに印が違い、規則にならない）。
+- 既知の限界（Policy 表の「仕組みでは止められない」に足した）: `localhost` を指すトンネルやポートフォワードの先が本番であること。`git branch -f main`、`git update-ref`、`git switch -C main`、別のリポジトリへの `cd` は見ていない。
+  リモート側のブランチ保護（GitHub の設定）は、この Skill の外で設定する。
+- 検証: hook のシナリオを 213 に増やした（保護ブランチ 57、ローカル接続先 36 を足した。実際の git リポジトリで、ブランチを切り替えながら確かめる）。実際の生成は、作者の次の実行に委ねる。
+
 ### H30. 既存プロジェクトを受け入れる。入口は `project-design-reboot`（2026-09-20）
 
 - 経緯は [project-design-reboot.md](project-design-reboot.md)。作者が、既存プロジェクトから `project-definition.md` を作る Skill を足すと決めた。

@@ -9,9 +9,18 @@
 // Decisions are made here, outside the model's reasoning, so they hold even when instructions are forgotten.
 // Shell commands are inspected on a best-effort basis; file tools are checked exactly.
 import {
-  DEFAULT_PROTECTED, appendTrace, canWrite, emit, findCommandRule, loadConfig, matchesAny, message,
-  readInput, roleConfig, roleOf, toProjectPath, writeTargets,
+  DEFAULT_PROTECTED, appendTrace, canWrite, emit, findCommandRule, gitBranchCheck, gitSubcommands, loadConfig, matchesAny, message,
+  projectRoot, readInput, roleConfig, roleOf, toProjectPath, writeTargets,
 } from './lib/harness.mjs';
+
+const GIT_FALLBACK = {
+  branchCommit: 'The current branch "{branch}" is protected. Do not commit on it ({sub}): create a feature branch first (git switch -c feature/<name>); your uncommitted changes come along. Protected branches receive changes through pull requests.',
+  branchPush: 'Pushing to the protected branch "{branch}" is prohibited in this project. Push a feature branch and open a pull request.',
+  branchPushAll: 'Pushing several branches at once (--all, --mirror, --prune, a pattern) may include a protected branch and is prohibited. Name one branch.',
+  pushDelete: 'deleting a remote branch ({ref})',
+  pushTag: 'pushing tags (this can start a release)',
+  pushUnknownRef: 'pushing something that is not a local branch ({ref})',
+};
 
 const FILE_TOOLS = { Edit: 'file_path', Write: 'file_path', MultiEdit: 'file_path', NotebookEdit: 'notebook_path' };
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
@@ -81,6 +90,28 @@ if (SHELL_TOOLS.has(tool)) {
     }
     decide('ask', message(config, 'commandAsk',
       'This operation has effects outside the workspace or cannot be undone: {label}. It needs your approval.', { label }), { rule: `command:${rule.match}` });
+  }
+
+  const cwd = input.cwd || projectRoot;
+  const branch = gitBranchCheck(config, command, cwd);
+  if (branch && branch.decision === 'deny') decide('deny', message(config, branch.key, GIT_FALLBACK[branch.key], branch.vars), { rule: `git:${branch.key}` });
+  // Pushing is the main session's job (after review and verification), or the operator's.
+  const pushRoles = (config && config.git && Array.isArray(config.git.pushRoles)) ? config.git.pushRoles : ['main', 'operator'];
+  if (!pushRoles.includes(role) && gitSubcommands(command, cwd).includes('push')) {
+    decide('deny', message(config, 'commandNotYourRole',
+      'Role "{role}" does not run this operation: {label}. It has effects outside the workspace, so it belongs to: {roles}. Report that it is needed instead of running it.',
+      { role, label: message(config, 'pushLabel', 'pushing to the remote', {}), roles: pushRoles.join(', ') }), { rule: 'git:push' });
+  }
+  if (branch) {
+    const text = message(config, branch.key, GIT_FALLBACK[branch.key], branch.vars);
+    const mayAsk = pushRoles;
+    if (!mayAsk.includes(role)) {
+      decide('deny', message(config, 'commandNotYourRole',
+        'Role "{role}" does not run this operation: {label}. It has effects outside the workspace, so it belongs to: {roles}. Report that it is needed instead of running it.',
+        { role, label: text, roles: mayAsk.join(', ') }), { rule: `git:${branch.key}` });
+    }
+    decide('ask', message(config, 'commandAsk',
+      'This operation has effects outside the workspace or cannot be undone: {label}. It needs your approval.', { label: text }), { rule: `git:${branch.key}` });
   }
 
   for (const target of writeTargets(command)) {

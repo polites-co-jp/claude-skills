@@ -25,8 +25,11 @@ hook の振る舞いは、すべてこのファイルで決まる。hook のス�
   },
   "commands": [
     { "match": "git push * --force*", "decision": "deny", "label": "強制 push" },
-    { "match": "git push", "decision": "ask", "label": "リモートへの push" }
+    { "match": "prisma migrate reset", "decision": "deny", "label": "DB の初期化", "localOk": true },
+    { "match": "psql", "decision": "ask", "label": "DB への直接接続", "localOk": true }
   ],
+  "localHosts": ["db"],
+  "git": { "protectedBranches": ["main", "master", "develop"], "pushRoles": ["main", "operator"] },
   "messages": { "…": "…" },
   "verify": {
     "command": "pnpm run verify",
@@ -53,6 +56,11 @@ hook の振る舞いは、すべてこのファイルで決まる。hook のス�
 | `roles.*` | 土台 | `roles` に無い Agent すべてに当てはまる既定。雛形のまま（どこにも書けない）にする |
 | `commands` | 土台 | 承認・禁止するコマンド。決め方と `match` の書き方は [policy.md](policy.md)。無ければ空の配列 |
 | `commands[].roles` | 土台 | その `ask` を求められる役。省略時は `["main", "operator"]`。通常は省略する。例外は、未コミットの作業を消す共通の行（`git clean`、`git reset * --hard`）で、コード実装役とテスト実装役もすべて入れる |
+| `commands[].localOk` | 土台 | `true` なら、その規則は、コマンドが**この機械を指していると読める**ときには当てはまらない。DB を対象にする規則に付ける（[policy.md](policy.md) の手順 5）。読み方は下の「`localOk` の判定」 |
+| `localHosts` | 土台 | ローカルと見なすホスト名の追加。`localhost`、`127.0.0.1`、`::1`、`host.docker.internal` は最初から含まれる。開発用の DB をコンテナで動かしているなら、compose のサービス名（`db` など）を入れる |
+| `git.protectedBranches` | 土台 | 保護ブランチ。既定は `["main", "master", "develop"]`。ここへのコミット・マージ・rebase・cherry-pick・revert・push は拒否される。`release/*` のようなパターンも書ける。空にすると、この判定を止める |
+| `git.pushRoles` | 土台 | push できる役。既定は `["main", "operator"]`。それ以外の役の push は、確認なしで拒否される |
+| `messages.branchCommit` ほか | 土台 | 保護ブランチの拒否の文（`branchCommit`、`branchPush`、`branchPushAll`）と、承認の見出し（`pushDelete`、`pushTag`、`pushUnknownRef`、`pushLabel`）。`{branch}`、`{sub}`、`{ref}` が置き換わる |
 | `messages` | 土台 | hook が利用者と Agent に見せる文。雛形は日本語。利用者の言語に合わせて書き換える。`{…}` の置き換え記号は残す |
 | `verify` | 段階 5 | 段階 4 以下では `null`。下の節を見る |
 | `trace.enabled` | 段階 6 | 段階 5 以下では `false` |
@@ -60,6 +68,27 @@ hook の振る舞いは、すべてこのファイルで決まる。hook のス�
 雛形に無い役を足したら（`security-reviewer`、`operator`、ツールチェーンごとに分けた役）、必ず `roles` にも足す。`roles` に無い役は `*` の規則に落ち、どこにも書けない。
 読み取り専用の役はそれで正しく動くが、`onDeny` の文がその役向けにならないので、足しておく。
 **コード実装役とテスト実装役を分けた場合は、`roles.implementer` と `roles.test-writer` を消して、分けた役をそれぞれ足す**。足し忘れた役は、1行も書けない。
+
+## `localOk` の判定
+
+hook は、1つの単純なコマンドの中から、接続先を次の順で読む。
+
+- URL（`postgresql://user:pw@host:5432/db`）のホスト。環境変数の代入（`DATABASE_URL=...`）の中でも、引数でも、`docker run -e` の値でも同じ
+- `file:` と `sqlite:` の URL は、ホスト無し（ローカル）
+- `-h host`、`--host host`、`--host=host`、`-hhost`（mysql の形）、conninfo の `host=`
+- `PGHOST=`、`DB_HOST=` のような、名前が `HOST` で終わる環境変数の代入
+
+判定は次のとおり。
+
+| 読めたもの | 判定 |
+|---|---|
+| 1つ以上のホストがあり、すべてがローカル（組み込みの一覧、`localHosts`、`*.localhost`、ホスト無し） | ローカル。規則は当てはまらない |
+| ホストが1つでもローカルでない（`db.prod.example.com`、`10.0.0.5`、変数 `$PROD_URL`、読めない URL） | 外。規則どおり |
+| ホストが無く、`docker`／`podman` の `compose exec`・`compose run`・`exec`・`run` の中で走る | ローカル（コンテナの中）。コンテナの中では、点を含まない名前（`db`）もローカルと見なす |
+| ホストが無く、コンテナの中でもない（`.env` 任せの `prisma migrate reset`） | 不明。規則どおり |
+| `ssh`、`kubectl`、`gcloud`、`aws`、`fly` などの先で走る。`docker --context`、`DOCKER_HOST=` | 外。`localhost` と書かれていても、向こう側の `localhost` である |
+
+Agent には、テスト DB を指すときは接続先を明示するように、雛形の定義と `onDeny` の文で伝える。
 
 ## `verify`（段階 5「終わったと言う前に検査を通す」以上）
 

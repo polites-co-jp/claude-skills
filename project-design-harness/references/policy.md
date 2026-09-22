@@ -56,7 +56,9 @@
 
 | hook の `match` | permissions の規則 |
 |---|---|
-| `git push`（`*` なし） | `Bash(git push *)` |
+| `git push * --force*` のような git の規則 | 下の行のとおり |
+| `localOk` を付けた規則 | **permissions には書かない**。`deny`・`ask` の規則は、先頭の環境変数の代入（`DATABASE_URL=...`）を読み飛ばして一致するので、ローカルを指した形まで止めてしまう。この規則は hook だけで受け持つ |
+| 保護ブランチ（hook の `git.protectedBranches`） | 保護ブランチ1つにつき、`Bash(git push * <名前>)` と `Bash(git push * *:<名前>)` を `deny` に。行頭からの照合なので、`git push` だけの形（現在のブランチへの push）は hook しか判定できない |
 | `stripe`（1語） | `Bash(stripe *)` |
 | `git push * --force*`（途中に単独の `*`。最後の語が `*` で終わる） | `*` を外した形と残した形の2本。`Bash(git push --force*)` と `Bash(git push * --force*)` |
 | `prisma db push * --force-reset`（途中に単独の `*`。最後の語が `*` で終わらない） | 同じく2本で、末尾に ` *` を足す。`Bash(prisma db push --force-reset *)` と `Bash(prisma db push * --force-reset *)` |
@@ -91,15 +93,19 @@
 3. **区分 D の「不可逆・機微な操作」を1行ずつ取り上げる**。同じくコマンドを特定し、上の基準で `deny` か `ask` かを決める
 3a. **区分 D の行に、コマンドそのものが書かれていれば**（既存プロジェクトの定義に多い。「本番 DB に `psql` でつなぐ」「`prisma migrate dev`」など）、下の対応表に無くても、そのコマンドを規則にする。扱いは、その行の項目（外部作用なら `ask`、不可逆・機微なら上の基準）で決める。**危険なコマンドを包んだ scripts の名前が書かれていれば**（既存プロジェクトの定義に多い。「`pnpm db:reset`（中身は `prisma migrate reset --force`）」など）、中のコマンドに加えて、scripts の呼び出しも同じ扱いの規則にする。hook の `match` は `<パッケージマネージャ> * <scripts の名前>` の形で書く（`pnpm * db:reset`）。これ1本で、`pnpm db:reset` も `pnpm run db:reset` も `pnpm --dir apps/web run db:reset` も捕まえる。包まれた形は、コマンドの文字列から中身が見えないので、名前で止めるしかない
 3b. **区分 D の「秘密情報・個人情報」に秘密情報があれば**、手順 1 の道具のうち、秘密情報を管理するコマンドを持つものを `ask` にする（対応表の「秘密情報の管理」）
-4. **区分 E のホスティングを見る**。リモートのホスティングがあれば（`none` でも `deferred` でもなければ）、`git push` を `ask`、強制 push を `deny` にする。push は、コードを手元の外へ出す操作である。プルリクエストの作成とマージ、CI の手動実行（下の対応表）も `ask` にする。マージは、push と同じ結果（既定のブランチの更新、それに連なる自動デプロイ）を、push の関門を通らずに起こせる。CI の定義ファイル（下の対応表）の編集を `ask` にする
-5. **区分 E の実行環境の段階を見る**。本番か staging があり、区分 C に DB 種別があれば、その DB のクライアントコマンドを `ask` にする。コマンドの見た目では接続先を区別できないので、`deny` にはしない
+4. **git を見る**。プロジェクトが git で管理されていれば（`.git` がある）、**保護ブランチの規則**を入れる。`main`・`master`・`develop` へのコミット・マージ・rebase・push は `deny`（hook の `git.protectedBranches`。雛形のまま）。保護ブランチへ入れるのは、プルリクエストである。これは、作業のまとまりごとにコミットする、という運用と対になっている（[agents.md](agents.md)「流れの外にある仕事の持ち主」）。
+   リモートのホスティングがあれば（区分 E が `none` でも `deferred` でもなければ）、さらに次を入れる。強制 push、リモートのブランチの削除のうち保護ブランチのもの → `deny`。作業ブランチへの push → 日常の操作（承認なし。段階 3 以上で `allow`）。タグの push（リリースを起動しうる）、保護ブランチ以外のリモートのブランチの削除、ローカルのブランチではないものの push → `ask`（hook が判定する。規則は書かない）。プルリクエストの作成とマージ、CI の手動実行（下の対応表）→ `ask`。マージは、push と同じ結果（既定のブランチの更新、それに連なる自動デプロイ）を起こす。CI の定義ファイル（下の対応表）の編集 → `ask`。
+   push できる役は、主セッションと運用役だけ（hook の `git.pushRoles`。雛形のまま）。コード実装役やテスト実装役の push は、確認なしで拒否される
+5. **区分 E の実行環境の段階を見る**。本番か staging があり、区分 C に DB 種別があれば、その DB のクライアントコマンドを `ask` にし、`localOk` を付ける。コマンドの見た目では接続先を区別できないので、`deny` にはしない。
+   **`localOk`**: DB を対象にする規則（この行と、対応表の「DB のマイグレーション」「DB の初期化」「DB への直接接続」、手順 3a の DB の scripts）には、`"localOk": true` を付ける。接続先がこの機械だとコマンドの文字列から分かる形（`DATABASE_URL=postgresql://...@localhost/... prisma migrate reset`、`psql -h 127.0.0.1`、`docker compose exec db psql`、SQLite のファイル）は、テスト DB への操作として、承認なしで通す。接続先が見えない形（`.env` 任せの `prisma migrate reset`）と、外を指す形は、規則どおり。判定の詳細は [harness-config.md](harness-config.md) の `localOk`。
+   区分 E で開発用の DB をコンテナで動かしているなら、compose のサービス名（`docker-compose.yml` / `compose.yaml` の `services:` の名前）を `harness.json` の `localHosts` に入れる。コンテナの中から `-h db` で指す形を、ローカルと判定するため
 6. **「どのプロジェクトにも入れる行」を足す**
 
 区分 D の3項目がすべて `none` のプロジェクトでは、手順 2〜3 の結果は空になる。それで正しい。手順 4〜6 は、その場合も行う。
 
 各行には、根拠にしたプロジェクト定義の行（区分と項目）を必ず付ける。根拠を書けない行は、手順 6 の共通の行を除いて、入れてはいけない。
 
-階級は、次のように決める。手順 2 の行は「外部作用」。手順 3・3b の行は「不可逆・機微」。手順 4 の `git push`、プルリクエストの作成とマージ、CI の手動実行、CI の定義ファイルの編集は「外部作用」、強制 push は「不可逆・機微」。手順 5 の DB への直接接続は「不可逆・機微」（本番のデータに触れうる）。
+階級は、次のように決める。手順 2 の行は「外部作用」。手順 3・3b の行は「不可逆・機微」。手順 4 の保護ブランチへの変更、強制 push、リモートのブランチの削除は「不可逆・機微」。作業ブランチへの push は「可逆な変更」（戻せる。本番には届かない）。プルリクエストの作成とマージ、タグの push、CI の手動実行、CI の定義ファイルの編集は「外部作用」。手順 5 の DB への直接接続は「不可逆・機微」（本番のデータに触れうる）。
 
 ## 道具が決まっていないとき
 
@@ -124,9 +130,9 @@
 | 公開済みの版の取り下げ | `npm unpublish`／`cargo yank` | `deny` |
 | リリースの作成 | 区分 D にリリースや公開が外部作用として書かれていて、ホスティングが GitHub → `gh release create` | `ask` |
 | プルリクエストとCI（手順 4） | GitHub → `gh pr create`, `gh pr merge`, `gh workflow run`／GitLab → `glab mr create`, `glab mr merge`, `glab ci run` | `ask` |
-| DB のマイグレーション（本番を含みうる） | Prisma → `prisma migrate deploy`／Drizzle → `drizzle-kit migrate`, `drizzle-kit push`／Alembic → `alembic upgrade`／Rails → `rails db:migrate`／Knex → `knex migrate:latest`／Flyway → `flyway migrate` | `ask` |
-| DB の初期化 | Prisma → `prisma migrate reset`, `prisma db push * --force-reset`／Rails → `rails db:drop`, `rails db:reset`／PostgreSQL → `dropdb` | `deny` |
-| DB への直接接続（手順 5） | PostgreSQL → `psql`／MySQL → `mysql`／MongoDB → `mongosh`／Redis → `redis-cli` | `ask` |
+| DB のマイグレーション（本番を含みうる） | Prisma → `prisma migrate deploy`, `prisma migrate dev`／Drizzle → `drizzle-kit migrate`, `drizzle-kit push`／Alembic → `alembic upgrade`／Rails → `rails db:migrate`／Knex → `knex migrate:latest`／Flyway → `flyway migrate` | `ask`（`localOk`） |
+| DB の初期化 | Prisma → `prisma migrate reset`, `prisma db push * --force-reset`／Rails → `rails db:drop`, `rails db:reset`／PostgreSQL → `dropdb` | `deny`（`localOk`。テスト DB の初期化は、接続先を明示した形で通る） |
+| DB への直接接続（手順 5） | PostgreSQL → `psql`／MySQL → `mysql`／MongoDB → `mongosh`／Redis → `redis-cli` | `ask`（`localOk`） |
 | 決済サービスの操作 | Stripe → `stripe` | `ask` |
 | 秘密情報の管理（手順 3b） | GitHub → `gh secret`／Vercel → `vercel env`／Fly.io → `fly secrets`, `flyctl secrets` | `ask` |
 
@@ -149,6 +155,7 @@ CI の定義ファイル（手順 4）。編集を permissions の `ask` にす�
 | 秘密情報ファイルを読む | permissions: `Read(.env*)`、`Read(!.env.example)`、`Read(!.env.sample)`、`Read(!.env.template)`、`Read(**/secrets/**)` | `deny` | 区分 D の秘密情報が `none` でも入れる。秘密情報は後から増える。`Read` の `deny` は、同じパスへの Edit と Write も止める。雛形のファイルは `!` で除外する |
 | 未コミットの作業を消す | hook: `git clean`、`git reset * --hard`。`roles` には、主セッション・運用役に加えて、コード実装役とテスト実装役をすべて入れる | `ask` | 取り消せないので人に確かめる。ただし失敗した試みを捨てて戻すのは、実装役の正当な回復手段でもある |
 | 履歴の書き換え（ホスティングがあるとき） | hook: `git push * --force*`、`git push * -f*` | `deny` | 他の人の作業と、戻すための履歴を壊す。根拠には「共通（E: ホスティングあり）」と書く |
+| 保護ブランチへの変更（git で管理されているとき） | hook: `git.protectedBranches`（`main`、`master`、`develop`） | `deny` | 作業は作業ブランチで行い、保護ブランチへはプルリクエストで入れる。根拠には「共通（git）」と書く |
 | ハーネス自身の変更 | hook の保護パス | 主セッションは承認、subagent は拒否 | Agent が自分の権限を黙って広げない。この Skill の再実行だけは、ファイルの計画の承認をもって承認とし、同梱のスクリプトで一括して書き込む（[merge.md](merge.md) の「書き込むとき」）。そのスクリプトを subagent が実行することは、hook が拒否する |
 | 役ごとの書き込み境界 | hook の `roles` | 範囲外は拒否 | [agents.md](agents.md) |
 
@@ -157,7 +164,8 @@ CI の定義ファイル（手順 4）。編集を permissions の `ask` にす�
 
 ## 日常の操作の許可リスト
 
-「日常の操作で止まらないようにする」（段階 3）以上では、日常の可逆な操作を permissions の `allow` に入れて、承認待ちで流れが止まらないようにする。区分 C のパッケージマネージャと、区分 E のコンテナ利用から導く。
+「日常の操作で止まらないようにする」（段階 3）以上では、日常の可逆な操作を permissions の `allow` に入れて、承認待ちで流れが止まらないようにする。区分 C のパッケージマネージャと、区分 E のコンテナ利用と git から導く。
+次の種類の操作は、承認を求めない。設計文書への書き込み、検索、コンテナの操作、画面テスト（E2E）の実行、テスト DB への操作、作業ブランチへのコミットと push。
 
 | 区分 C・E | `allow` に入れる例 |
 |---|---|
@@ -166,13 +174,18 @@ CI の定義ファイル（手順 4）。編集を permissions の `ask` にす�
 | Cargo | `Bash(cargo build *)`、`Bash(cargo test *)`、`Bash(cargo check *)`、`Bash(cargo clippy *)`、`Bash(cargo fmt *)` |
 | Go | `Bash(go build *)`、`Bash(go test *)`、`Bash(go vet *)`、`Bash(go mod *)` |
 | CMake | `Bash(cmake *)`、`Bash(ctest *)` |
-| コンテナを開発に使う | `Bash(docker compose up *)`、`Bash(docker compose down *)`、`Bash(docker compose logs *)`、`Bash(docker compose ps *)` |
-| git（共通） | `Bash(git status *)`、`Bash(git diff *)`、`Bash(git log *)`、`Bash(git add *)`、`Bash(git commit *)`、`Bash(git switch *)`、`Bash(git branch *)` |
+| 画面テスト（E2E）の道具が区分 C にある | Playwright → `Bash(npx playwright *)`、`Bash(playwright *)`／Cypress → `Bash(npx cypress *)`、`Bash(cypress *)`（パッケージマネージャ経由の形は上の行で通る） |
+| コンテナを開発に使う | `Bash(docker compose *)`、`Bash(docker build *)`、`Bash(docker run *)`、`Bash(docker exec *)`、`Bash(docker ps *)`、`Bash(docker logs *)`、`Bash(docker stop *)`、`Bash(docker start *)`、`Bash(docker restart *)`、`Bash(docker rm *)`、`Bash(docker rmi *)`、`Bash(docker images *)`、`Bash(docker volume *)`、`Bash(docker network *)`。`docker compose push` は `ask` の規則が勝つ。`docker login`、`docker context`、`docker push` は入れない |
+| git（git で管理されているとき） | `Bash(git status *)`、`Bash(git diff *)`、`Bash(git log *)`、`Bash(git show *)`、`Bash(git grep *)`、`Bash(git add *)`、`Bash(git commit *)`、`Bash(git switch *)`、`Bash(git checkout *)`、`Bash(git branch *)`、`Bash(git stash *)`、`Bash(git fetch *)`、`Bash(git pull *)`、`Bash(git merge *)`、`Bash(git rebase *)`、`Bash(git tag *)`（リモートがあれば）`Bash(git push *)`。保護ブランチへのコミット・マージ・push と強制 push は、hook と `deny` の規則が先に止める |
+| 検索（共通） | `Bash(grep *)`、`Bash(rg *)`、`Bash(find *)`、`Bash(git grep *)`。検索パターンに記号（`\|`、`\\`、`$`）を含む形が、Claude Code の組み込みの読み取り専用の判定から外れて確認になるのを避ける。`$(...)` を含むコマンドは、それでも確認になる |
+| 設計文書への書き込み（共通） | `Edit(docs/**)`。区分 F に「設計文書の場所」があれば、その場所も（`Edit(design/**)`）。役の制限は hook が掛けるので、`allow` に入れても実装役が設計文書を書けるようにはならない |
+| テスト DB への操作 | permissions には書かない。hook の `localOk`（手順 5）が、接続先がローカルと分かる形を通す。`pnpm exec *`・`pnpm run *`・`docker compose *` の許可と組み合わさって、確認なしで走る |
 
 - **区分 E の開発環境が Windows なら、同じ規則を `PowerShell(...)` の形でも書く**。`Bash(...)` の規則は PowerShell ツールには効かない。`allow` だけでなく、`deny` と `ask` も同じ
 - パッケージマネージャ全体（`Bash(pnpm *)`）、`Bash(docker *)`、`Bash(git *)` は入れない。公開や push まで通ってしまう
 - `pnpm exec *` や `pnpm run *` は、その先で何が走るかを permissions からは見分けられない。`pnpm exec prisma migrate reset` は、hook の規則が捕まえる。`package.json` の scripts に書かれた中身（`pnpm run deploy` の実体）は、hook からも見えない。これは「仕組みでは止められないもの」に載せる
-- `allow` は役ごとに分けられない。検証役や運用役も `git commit` できる。これは Policy 表の下に注記する
+- `allow` は役ごとに分けられない。検証役や運用役も `git commit` できる。これは Policy 表の下に注記する。push だけは、hook が主セッションと運用役以外を止める（`git.pushRoles`）
+- 開発環境が Windows で PowerShell ツールが使われるなら、検索は `PowerShell(Select-String *)`、`PowerShell(Get-ChildItem *)`、`PowerShell(rg *)` も足す
 
 ## permissions の書き方（確認済みの仕様）
 
@@ -205,6 +218,8 @@ hook と permissions が見ているのは、ツールの呼び出し（どの�
 | スクリプトを介した、役の範囲外への書き込み | hook が読めるのは、リダイレクト・`tee`・`rm`・`cp`・`mv`・`sed -i` などの、書き込み先が引数に現れる形まで | 検証役の却下の基準（スコープ外の変更）とレシートで見つける |
 | 道具が未定の外部作用 | 規則にするコマンドが、まだ無い | 決まったらプロジェクト定義を更新して再実行する。それまでは人が実行する |
 | 個人情報が、ログやテストデータに書き出される | 内容の検査はしていない | 実装役の定義と、検証役の却下の基準で守る |
+| `localhost` を指しているが、実際には本番に届く（SSH のトンネル、ポートフォワード） | コマンドの文字列は `localhost` を指している | 本番へのトンネルを、開発環境で張ったままにしない |
+| ブランチの保護の抜け道（`git branch -f main`、`git update-ref`、`git switch -C main`、別のリポジトリでの操作） | 見ているのは、コミット・マージ・rebase・cherry-pick・revert・am と push だけ | 保護ブランチへ入れる経路をプルリクエストに揃える。リモート側でもブランチ保護を設定する |
 
 止められないものを正直に書くことには意味がある。利用者は、自分で守るべき場所を知ることができる。
 
@@ -214,10 +229,13 @@ hook と permissions が見ているのは、ツールの呼び出し（どの�
 
 | 操作 | 根拠 | 階級 | 扱い | 規則 |
 |---|---|---|---|---|
-| リモートへの push | E: GitHub | 外部作用 | 承認（主セッション・運用役） | hook `git push` |
+| 保護ブランチ（main・master・develop）へのコミット・マージ・push | 共通（git） | 不可逆・機微 | 禁止。作業ブランチからプルリクエストで入れる | hook `git.protectedBranches` |
+| 作業ブランチへの push | E: GitHub | 可逆な変更 | 自動（主セッション・運用役だけ。作業のまとまりごとにコミットして push する） | permissions `Bash(git push *)`、hook `git.pushRoles` |
+| タグの push、リモートのブランチの削除 | E: GitHub | 外部作用 | 承認（主セッション・運用役） | hook |
+| プルリクエストの作成とマージ | E: GitHub | 外部作用 | 承認（主セッション・運用役） | hook `gh pr create`、`gh pr merge` |
 | コンテナイメージの公開 | D: クラウドへのデプロイ／C: コンテナを動かせるクラウド／E: Docker | 外部作用 | 承認（主セッション・運用役） | hook `docker push` ほか |
 | 本番 DB のマイグレーション | D: 本番 DB のマイグレーション／H: Prisma（未確定） | 不可逆・機微 | 承認（主セッション・運用役） | hook `prisma migrate deploy` |
-| DB の初期化 | 同上 | 不可逆・機微 | 禁止 | hook `prisma migrate reset` |
+| DB の初期化 | 同上 | 不可逆・機微 | 禁止。ただし接続先がローカルだと分かる形（`DATABASE_URL=...@localhost/...`、コンテナの中）は、テスト DB として通す | hook `prisma migrate reset`（`localOk`） |
 | 秘密情報ファイルを読む | 共通 | 機微 | 禁止 | permissions `Read(.env*)` ほか |
 | クラウドへのデプロイ（イメージの公開より先） | D: クラウドへのデプロイ | 外部作用 | **道具が未定のため、仕組みでは止められない** | 決まったら定義を更新して再実行 |
 | テスト中に本物の課金が走る | D: 決済サービスへの課金 | 外部作用 | **仕組みでは止められない** | テスト用のキーだけを置く |
