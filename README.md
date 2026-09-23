@@ -115,6 +115,14 @@ npx skills add polites-co-jp/claude-skills --skill project-design-harness
 
 各 Skill の設計判断とその理由は [docs/decisions/](docs/decisions/) に残してある。
 
+## 開発
+
+`project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラには、リポジトリに自動テストがある。
+push・pull request のたびに GitHub Actions で実行される（[.github/workflows/ci.yml](.github/workflows/ci.yml)）。
+ローカルでの実行方法は [tests/README.md](tests/README.md)。
+
+不具合の報告や改善の提案は [Issues](https://github.com/polites-co-jp/claude-skills/issues) へ。
+
 ## 出典
 
 ハーネスの考え方は、@LunarResearcher 氏の記事「Harness Engineering: The Complete Guide to Building AI Agents That Don't Fall Apart」

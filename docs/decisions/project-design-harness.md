@@ -492,6 +492,25 @@ AskUserQuestion で確かめた裁定。
   リモート側のブランチ保護（GitHub の設定）は、この Skill の外で設定する。
 - 検証: hook のシナリオを 213 に増やした（保護ブランチ 57、ローカル接続先 36 を足した。実際の git リポジトリで、ブランチを切り替えながら確かめる）。実際の生成は、作者の次の実行に委ねる。
 
+### H39. hook とインストーラの回帰テストをリポジトリに持つ（common.md C6 の実装, 2026-09-23）
+
+裁定は [common.md](common.md) の C6。ここには、このスキル側の実装だけを記録する。
+
+- `project-design-harness/tests/hook-scenarios.mjs`（215件。write-boundary の213シナリオ + completion-gate の2アサーション）と
+  `project-design-harness/tests/installer.mjs`（25件）を、これまで試行のたびにスクラッチパッドで積み上げてきたシナリオ一式から、
+  そのままリポジトリに移した。
+- 実行のたびに `os.tmpdir()` に使い捨てのプロジェクトを作り、テストの最後に消す。`hook-scenarios.mjs` は実在の git リポジトリを
+  作ってブランチを切り替えながら確認する（保護ブランチの判定は、実際のブランチの状態を見て決まるため）。
+- 完了ゲートの確認（`gate: missing verify directory is explained`、`gate: five probes...`）は、これまでスクラッチパッドでは
+  出力を目で見て確かめるだけで、`bad` カウンタに入っていなかった。今回、期待する文字列と結果を比較する形に直し、
+  CI で壊れたら気づけるようにした。
+- `tests/check-repo.mjs`（リポジトリ全体。JSON・リンク・置き換え記号・段階の番号）も同様に移した。
+- `.github/workflows/ci.yml` を追加し、push・pull request のたびに上の3つと、hook スクリプトの構文チェック（`node --check`）、
+  `npx skills add . --list` によるスキル検出を実行する。
+- 既知の限界: `project-design-opening`・`project-design-reboot` の対話の振る舞いは、決定的な入出力を持たないため、この CI の対象外
+  （C3 のまま、作者の実プロジェクトでの試用に委ねる）。CI は GitHub Actions の `ubuntu-latest` でだけ動くので、Windows・macOS 固有の
+  パスの扱い（`toProjectPath` の `/c/...` 変換など）は、この CI では確認できない。
+
 ### H30. 既存プロジェクトを受け入れる。入口は `project-design-reboot`（2026-09-20）
 
 - 経緯は [project-design-reboot.md](project-design-reboot.md)。作者が、既存プロジェクトから `project-definition.md` を作る Skill を足すと決めた。

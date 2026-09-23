@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax-check the hook and installer scripts
+        run: |
+          set -e
+          for f in project-design-harness/assets/hooks/*.mjs project-design-harness/assets/hooks/lib/*.mjs project-design-harness/scripts/*.mjs; do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+      - name: Repository checks (JSON, links, placeholders, level codes)
+        run: node tests/check-repo.mjs
+
+      - name: Hook scenarios (write-boundary, completion-gate)
+        run: node project-design-harness/tests/hook-scenarios.mjs
+
+      - name: Installer scenarios (harness-install.mjs)
+        run: node project-design-harness/tests/installer.mjs
+
+      - name: Skill discovery (npx skills)
+        run: npx -y skills add . --list
