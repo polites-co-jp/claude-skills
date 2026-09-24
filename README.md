@@ -2,6 +2,7 @@
 
 AI エージェントに開発を任せるための Skill 集。
 曖昧なアイデアから、Agent が安全に開発を進められる状態までを、3つの Skill の連鎖で整える。
+それとは別に、箇条書きの Markdown から Slidev のプレゼンテーションを作る `md-to-slidev` も置いている。
 
 ```text
 曖昧なアイデア（新規）
@@ -27,6 +28,7 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 | [project-design-reboot](project-design-reboot/) | 初版（作者の実プロジェクトで試用する前の段階） | 既存のリポジトリを走査し、コードから分からないことだけを聞いて、同じ `docs/project-definition.md` を作る |
 | [project-design-harness](project-design-harness/) | 初版（作者の実プロジェクトで試用する前の段階） | 定義を入力に、開発を担う Agent・権限・検証・状態管理を `.claude/` 以下に作る。Claude Code 専用 |
 | 詳細設計の Skill | 構想中 | 上の2つを土台に、機能・要件・システム設計を詰める |
+| [md-to-slidev](md-to-slidev/) | 初版（作者の実プレゼンで試用する前の段階） | 上の連鎖とは独立。箇条書きの Markdown から、白基調・図解優先の Slidev プレゼンテーションを作る |
 
 ### project-design-opening
 
@@ -75,6 +77,19 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 既存の `.claude/` や `CLAUDE.md` があっても動く。書く前に「新規作成／変更／そのまま」の計画を見せ、人が書いたものは保つ。
 仕組みで守れないこと（テストの中から本物の外部 API が呼ばれる、など）は、守れるかのように見せず、Policy 表に明記する。
 
+### md-to-slidev
+
+発表したい内容を箇条書きで整理した Markdown から、[Slidev](https://sli.dev/) のプレゼンテーションを生成する。上の3つの連鎖とは独立した Skill。
+
+- **入力**: `#` がプレゼンタイトル、`##` がセクション、最上位の箇条書き1つがスライド1枚、という形の Markdown。`#` の直下の箇条書きは前提（目的・聴衆・持ち時間・使われ方）
+- **出力**: `slides.md`、承認したスライド計画 `slide-plan.md`、デザイン部品一式（`style.css`・`layouts/`・`components/`）。Slidev プロジェクトが無ければ最小の雛形も作る
+- **やること**: 内容を読んで各スライドの結論を1つ導き、プロセス・分岐・階層・比較・構成を同梱の SVG/CSS 部品（Step・Branch・Layer・Comparison・Architecture など）で図にし、「タイトル → 結論 → 左に説明、右に図」のレイアウトに載せる。スライド計画で一度だけ承認を取り、`slidev build` が通ってから報告する
+- **デザイン**: 白背景、`#222222` の文字、Noto Sans JP、18px 以上、細い線、控えめなアクセントカラー3色。色・サイズ・余白は `style.css` の変数に閉じ込め、`slides.md` には内容と部品の呼び出しだけを書く。デザインを変えるときは部品を差し替える
+- **やらないこと**: 入力にない事実の追加（補足が要る箇所は「確認が必要な事項」として報告）、入力の順や枚数の無断変更（分割・統合・並べ替えは計画で提案）、画像の生成、比較での優劣の暗示、PowerPoint・Marp・reveal.js への出力
+- **前提**: Node.js（Slidev のため）。特定のエージェント基盤には依存しない
+
+完成例は [md-to-slidev/assets/example/](md-to-slidev/assets/example/)（入力・計画・`slides.md`）。同梱の部品は CI で実際にビルドして確かめている。
+
 ## 導入
 
 [skills CLI](https://github.com/vercel-labs/skills) を使う場合:
@@ -83,9 +98,10 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 npx skills add polites-co-jp/claude-skills --skill project-design-opening
 npx skills add polites-co-jp/claude-skills --skill project-design-reboot
 npx skills add polites-co-jp/claude-skills --skill project-design-harness
+npx skills add polites-co-jp/claude-skills --skill md-to-slidev
 ```
 
-手で入れる場合は、`project-design-opening/`、`project-design-reboot/`、`project-design-harness/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
+手で入れる場合は、`project-design-opening/`、`project-design-reboot/`、`project-design-harness/`、`md-to-slidev/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
 （Claude Code なら `~/.claude/skills/` か、プロジェクトの `.claude/skills/`）。
 
 ## 使い方
@@ -111,13 +127,21 @@ npx skills add polites-co-jp/claude-skills --skill project-design-harness
 仕組みをどこまで入れるか、Policy 表、ファイルの計画の3つを確認すると、`.claude/` 以下が生成される。生成後は Claude Code を再起動する。
 以後は、主セッションに設計や変更を相談すると、設計文書を更新したうえで、テスト、実装、レビュー、検証の順に、それぞれの役に委任する流れになる。
 
+プレゼンテーションを作るときは、箇条書きの Markdown を用意して、次のように頼む。
+
+```text
+この内容を Slidev のスライドにして。
+```
+
+スライド計画を1回確認すると、`slides.md` と部品が書き出される。`npm run dev` で開ける。
+
 ## 設計の記録
 
 各 Skill の設計判断とその理由は [docs/decisions/](docs/decisions/) に残してある。
 
 ## 開発
 
-`project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラには、リポジトリに自動テストがある。
+`project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラ、`md-to-slidev` の部品には、リポジトリに自動テストがある。
 push・pull request のたびに GitHub Actions で実行される（[.github/workflows/ci.yml](.github/workflows/ci.yml)）。
 ローカルでの実行方法は [tests/README.md](tests/README.md)。
 

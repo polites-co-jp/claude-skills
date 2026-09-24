@@ -18,7 +18,7 @@ jobs:
       - name: Syntax-check the hook and installer scripts
         run: |
           set -e
-          for f in project-design-harness/assets/hooks/*.mjs project-design-harness/assets/hooks/lib/*.mjs project-design-harness/scripts/*.mjs; do
+          for f in project-design-harness/assets/hooks/*.mjs project-design-harness/assets/hooks/lib/*.mjs project-design-harness/scripts/*.mjs md-to-slidev/tests/*.mjs; do
             echo "node --check $f"
             node --check "$f"
           done
@@ -31,6 +31,9 @@ jobs:
 
       - name: Installer scenarios (harness-install.mjs)
         run: node project-design-harness/tests/installer.mjs
+
+      - name: md-to-slidev parts (static checks + slidev build of the example)
+        run: node md-to-slidev/tests/build-example.mjs
 
       - name: Skill discovery (npx skills)
         run: npx -y skills add . --list
