@@ -1,0 +1,4 @@
+# slide-design-review: images and snapshots are local working files; the markdown logs are the record
+*.png
+.renders/
+.snapshots/

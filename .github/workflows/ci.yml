@@ -13,12 +13,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Syntax-check the hook and installer scripts
         run: |
           set -e
-          for f in project-design-harness/assets/hooks/*.mjs project-design-harness/assets/hooks/lib/*.mjs project-design-harness/scripts/*.mjs md-to-slidev/tests/*.mjs; do
+          for f in project-design-harness/assets/hooks/*.mjs project-design-harness/assets/hooks/lib/*.mjs project-design-harness/scripts/*.mjs md-to-slidev/tests/*.mjs slide-design-review/scripts/*.mjs slide-design-review/tests/*.mjs; do
             echo "node --check $f"
             node --check "$f"
           done
@@ -34,6 +34,11 @@ jobs:
 
       - name: md-to-slidev parts (static checks + slidev build of the example)
         run: node md-to-slidev/tests/build-example.mjs
+
+      - name: slide-design-review scripts (PNG diff, snapshot, and a real render of the md-to-slidev example)
+        run: |
+          npx -y playwright install-deps chromium
+          node slide-design-review/tests/scripts.mjs
 
       - name: Skill discovery (npx skills)
         run: npx -y skills add . --list

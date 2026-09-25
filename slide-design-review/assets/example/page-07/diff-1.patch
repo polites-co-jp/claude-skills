@@ -1,0 +1,186 @@
+diff --git a/components/Arrow.vue b/components/Arrow.vue
+index a58a70c..818edc4 100644
+--- a/components/Arrow.vue
++++ b/components/Arrow.vue
+@@ -1,24 +1,26 @@
+ <script setup>
+-// 細い矢印。dir: right | down | left | up。length は px。strong で 2px。label は矢印の脇に置く短い語。
++// 細い矢印。dir: right | down | left | up。length は px。strong で 2px、heavy で 3px（矢じりも大きくなる）。label は矢印の脇に置く短い語。
+ import { computed } from 'vue'
+ 
+ const props = defineProps({
+   dir: { type: String, default: 'right' },
+   length: { type: Number, default: 40 },
+   strong: { type: Boolean, default: false },
++  heavy: { type: Boolean, default: false },
+   label: { type: String, default: '' },
+ })
+ 
+-const head = 8
+-const thick = 16
++const headSize = computed(() => (props.heavy ? 14 : 8))
++const thick = computed(() => (props.heavy ? 24 : 16))
+ const horizontal = computed(() => props.dir === 'right' || props.dir === 'left')
+-const w = computed(() => (horizontal.value ? props.length : thick))
+-const h = computed(() => (horizontal.value ? thick : props.length))
++const w = computed(() => (horizontal.value ? props.length : thick.value))
++const h = computed(() => (horizontal.value ? thick.value : props.length))
+ 
+ // 線と矢じりの座標。矢じりは線の終端に開いた「く」の字。
+ const geom = computed(() => {
+   const L = props.length
+-  const m = thick / 2
++  const m = thick.value / 2
++  const head = headSize.value
+   switch (props.dir) {
+     case 'left':
+       return { line: [L, m, 0, m], head: `${head},${m - head / 2} 0,${m} ${head},${m + head / 2}` }
+@@ -33,7 +35,7 @@ const geom = computed(() => {
+ </script>
+ 
+ <template>
+-  <span class="md-arrow" :class="[`dir-${dir}`, { strong }]">
++  <span class="md-arrow" :class="[`dir-${dir}`, { strong, heavy }]">
+     <svg :width="w" :height="h" :viewBox="`0 0 ${w} ${h}`" aria-hidden="true">
+       <line :x1="geom.line[0]" :y1="geom.line[1]" :x2="geom.line[2]" :y2="geom.line[3]" />
+       <polyline :points="geom.head" />
+@@ -64,5 +66,7 @@ const geom = computed(() => {
+ }
+ .md-arrow.strong line,
+ .md-arrow.strong polyline { stroke-width: var(--md-stroke-strong); }
++.md-arrow.heavy line,
++.md-arrow.heavy polyline { stroke-width: var(--md-stroke-heavy); }
+ .md-arrow-label { font-size: var(--md-size-note); white-space: nowrap; }
+ </style>
+diff --git a/components/Step.vue b/components/Step.vue
+index 72c2050..8e571a9 100644
+--- a/components/Step.vue
++++ b/components/Step.vue
+@@ -1,6 +1,10 @@
+ <script setup>
+ // 工程・手順。items の各要素は文字列か { label, sub }。dir: h（横）| v（縦）。
+ // highlight: 強調する要素の 0 始まりの番号。accent: 強調の色（既定 '1'）。
++// size: 'md'（既定）| 'lg'。lg は横並びの大きな工程図で、全面レイアウト（md-wide）の中段を占める。
++//   lg の items は { label, value, prefix, unit, desc } も使える。value は大きな数字、prefix / unit はその前後の小さな語、desc は中身の文。
++//   例: { label: '第1段階', prefix: '約', value: '50', unit: '項目', desc: 'ログインと主要な画面遷移' }
++import { computed } from 'vue'
+ import Arrow from './Arrow.vue'
+ 
+ const props = defineProps({
+@@ -8,18 +12,25 @@ const props = defineProps({
+   dir: { type: String, default: 'h' },
+   highlight: { type: Array, default: () => [] },
+   accent: { type: String, default: '1' },
+-  arrow: { type: Number, default: 28 },
++  arrow: { type: Number, default: null },
++  size: { type: String, default: 'md' },
+ })
+ const norm = (it) => (typeof it === 'string' ? { label: it } : it)
++const lg = computed(() => props.size === 'lg')
++const arrowLength = computed(() => props.arrow ?? (lg.value ? 60 : 28))
+ </script>
+ 
+ <template>
+-  <div class="md-step" :class="[`dir-${dir}`, `accent-${accent}`]">
++  <div class="md-step" :class="[`dir-${dir}`, `accent-${accent}`, `size-${size}`]">
+     <template v-for="(it, i) in items" :key="i">
+-      <Arrow v-if="i > 0" :dir="dir === 'h' ? 'right' : 'down'" :length="arrow" />
++      <Arrow v-if="i > 0" :dir="dir === 'h' ? 'right' : 'down'" :length="arrowLength" :heavy="lg" />
+       <div class="md-step-item" :class="{ 'is-hl': highlight.includes(i) }">
+         <div class="md-step-label">{{ norm(it).label }}</div>
++        <div v-if="norm(it).value" class="md-step-value">
++          <span v-if="norm(it).prefix" class="md-step-unit">{{ norm(it).prefix }}</span><span class="md-step-num">{{ norm(it).value }}</span><span v-if="norm(it).unit" class="md-step-unit">{{ norm(it).unit }}</span>
++        </div>
+         <div v-if="norm(it).sub" class="md-step-sub">{{ norm(it).sub }}</div>
++        <div v-if="norm(it).desc" class="md-step-desc">{{ norm(it).desc }}</div>
+       </div>
+     </template>
+   </div>
+@@ -43,4 +54,31 @@ const norm = (it) => (typeof it === 'string' ? { label: it } : it)
+ .md-step.accent-2 .md-step-item.is-hl { border-color: var(--md-accent-2); }
+ .md-step.accent-3 .md-step-item.is-hl { border-color: var(--md-accent-3); }
+ .md-step-sub { font-size: var(--md-size-note); font-weight: 400; margin-top: 2px; overflow-wrap: anywhere; }
++
++/* ---- size: lg（全面の大きな工程図） ---- */
++.md-step.size-lg {
++  align-items: stretch;
++  gap: var(--md-gap-columns);
++  height: var(--md-step-lg-height);
++  margin-top: calc(var(--md-gap-conclusion-figure) - var(--md-gap-conclusion-body));
++}
++.md-step.size-lg .md-step-item {
++  display: flex;
++  flex-direction: column;
++  justify-content: center;
++  align-items: center;
++  gap: var(--md-step-lg-gap);
++  padding: var(--md-box-pad-lg);
++  font-weight: 400;
++}
++.md-step.size-lg .md-step-item.is-hl { font-weight: 700; }
++.md-step.size-lg .md-step-label { font-size: var(--md-size-title); font-weight: 700; line-height: 1.4; }
++.md-step.size-lg .md-step-value { line-height: 1.1; white-space: nowrap; }
++.md-step.size-lg .md-step-num {
++  font-size: var(--md-size-figure-num);
++  font-variant-numeric: tabular-nums;
++  margin: 0 0.08em;
++}
++.md-step.size-lg .md-step-unit { font-size: var(--md-size-conclusion); }
++.md-step.size-lg .md-step-desc { font-size: var(--md-size-figure-desc); line-height: var(--md-line-height); overflow-wrap: anywhere; }
+ </style>
+diff --git a/slides.md b/slides.md
+index 282e2a4..b159207 100644
+--- a/slides.md
++++ b/slides.md
+@@ -94,18 +94,12 @@ title: 進め方
+ -->
+ 
+ ---
+-layout: md-standard
++layout: md-wide
+ title: 自動化は一度に全部やらず、3段階で広げる
+ conclusion: 第1段階の約50項目から始めて、約400項目まで広げる
+ ---
+ 
+-- 第1段階 ログインと主要な画面遷移
+-- 第2段階 入力フォームの検証
+-- 第3段階 残りの画面
+-
+-::figure::
+-
+-<Step :items="[{ label: '第1段階', sub: '約50項目' }, { label: '第2段階', sub: '約150項目' }, { label: '第3段階', sub: '約200項目' }]" :highlight="[0]" />
++<Step size="lg" :items="[{ label: '第1段階', prefix: '約', value: '50', unit: '項目', desc: 'ログインと主要な画面遷移' }, { label: '第2段階', prefix: '約', value: '150', unit: '項目', desc: '入力フォームの検証' }, { label: '第3段階', prefix: '約', value: '200', unit: '項目', desc: '残りの画面' }]" :highlight="[0]" />
+ 
+ <!--
+ - 第1段階は項目が少なく、失敗したときに戻しやすい範囲
+diff --git a/style.css b/style.css
+index d76b2fc..4a5de6d 100644
+--- a/style.css
++++ b/style.css
+@@ -23,6 +23,8 @@
+   --md-size-conclusion: 28px;
+   --md-size-body: 22px;
+   --md-size-note: 18px;          /* 最小。これ未満は使わない */
++  --md-size-figure-num: 72px;    /* 大きな図の中の数字 */
++  --md-size-figure-desc: 24px;   /* 大きな図の中の説明文 */
+   --md-line-height: 1.5;
+ 
+   /* 余白 */
+@@ -33,12 +35,17 @@
+   --md-gap-item: 12px;
+   --md-gap-columns: 36px;
+   --md-figure-width: 45%;
++  --md-gap-conclusion-figure: 80px; /* 結論から大きな図（Step size=lg）までの間隔 */
+ 
+   /* 図形 */
+   --md-radius: 5px;
+   --md-stroke: 1.25px;
+   --md-stroke-strong: 2px;
+   --md-box-pad: 10px 16px;
++  --md-stroke-heavy: 3px;         /* 大きな図の矢印 */
++  --md-box-pad-lg: 40px;          /* 大きな図の箱の内側余白 */
++  --md-step-lg-height: 530px;     /* 大きな工程図（Step size=lg）の箱の高さ */
++  --md-step-lg-gap: 20px;         /* 大きな工程図の箱の中の行間 */
+ }
+ 
+ /* ---- レイアウト共通（presenter UI に漏れないよう .slidev-layout 配下に限定） ---- */

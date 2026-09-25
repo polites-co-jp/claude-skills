@@ -1,0 +1,86 @@
+diff --git a/layouts/md-wide.vue b/layouts/md-wide.vue
+index 5c84f9d..716f7df 100644
+--- a/layouts/md-wide.vue
++++ b/layouts/md-wide.vue
+@@ -1,6 +1,8 @@
+ <script setup>
+ // 全面レイアウト: タイトル → 結論 → 全幅の本文（全面図解・大きな比較表など）。
+-// frontmatter: title, conclusion, section(任意)
++// frontmatter: title, conclusion, section(任意), header(任意: 'lg')
++//   header: lg は、大きな文字の図（Step size="lg" など）を置くページ用。タイトルを大きく太く、結論を一段下の灰色の行にして、
++//   図の中の文字よりヘッダーが上位に見えるようにする。
+ import { computed, unref } from 'vue'
+ import { useSlideContext } from '@slidev/client'
+ import MdFooter from '../components/MdFooter.vue'
+@@ -10,7 +12,7 @@ const fm = computed(() => unref(ctx.$frontmatter) || {})
+ </script>
+ 
+ <template>
+-  <div class="slidev-layout md-wide">
++  <div class="slidev-layout md-wide" :class="{ 'header-lg': fm.header === 'lg' }">
+     <h1 class="md-title">{{ fm.title }}</h1>
+     <p v-if="fm.conclusion" class="md-conclusion">{{ fm.conclusion }}</p>
+     <div class="md-body">
+diff --git a/slides.md b/slides.md
+index b159207..9e5a169 100644
+--- a/slides.md
++++ b/slides.md
+@@ -97,6 +97,7 @@ title: 進め方
+ layout: md-wide
+ title: 自動化は一度に全部やらず、3段階で広げる
+ conclusion: 第1段階の約50項目から始めて、約400項目まで広げる
++header: lg
+ ---
+ 
+ <Step size="lg" :items="[{ label: '第1段階', prefix: '約', value: '50', unit: '項目', desc: 'ログインと主要な画面遷移' }, { label: '第2段階', prefix: '約', value: '150', unit: '項目', desc: '入力フォームの検証' }, { label: '第3段階', prefix: '約', value: '200', unit: '項目', desc: '残りの画面' }]" :highlight="[0]" />
+diff --git a/style.css b/style.css
+index c226c07..adecf1c 100644
+--- a/style.css
++++ b/style.css
+@@ -6,6 +6,7 @@
+   /* 色 */
+   --md-bg: #ffffff;
+   --md-fg: #222222;
++  --md-fg-sub: #555555;          /* 本文より一段薄い文字（header: lg の結論） */
+   --md-line: #b5b9bd;            /* 薄い境界線・矢印 */
+   --md-line-strong: #222222;     /* 重要な線 */
+   --md-accent-1: #4f6d7a;        /* Blue Gray */
+@@ -25,14 +26,17 @@
+   --md-size-note: 18px;          /* 最小。これ未満は使わない */
+   --md-size-figure-num: 130px;   /* 大きな図の中の数字 */
+   --md-size-figure-unit: 40px;   /* 大きな図の数字の前後の語（「約」「項目」） */
+-  --md-size-figure-label: 44px;  /* 大きな図の中の段階名 */
++  --md-size-figure-label: 40px;  /* 大きな図の中の段階名。header: lg のタイトルより確実に小さく、「約」「項目」と同じ大きさ */
+   --md-size-figure-desc: 32px;   /* 大きな図の中の説明文 */
+   --md-line-height: 1.5;
++  --md-size-title-lg: 54px;      /* header: lg のタイトル */
++  --md-size-conclusion-lg: 32px; /* header: lg の結論。大きな図の説明文と同じ大きさ */
+ 
+   /* 余白 */
+   --md-pad-x: 48px;
+   --md-pad-y: 40px;
+   --md-gap-title-conclusion: 18px;
++  --md-gap-title-conclusion-lg: 4px; /* header: lg。行の上下の余白を含めると、字面の間は約20px */
+   --md-gap-conclusion-body: 22px;
+   --md-gap-item: 12px;
+   --md-gap-columns: 36px;
+@@ -87,6 +91,19 @@
+   opacity: 1; /* theme-default の h1 + p { opacity: .5 } を打ち消す */
+ }
+ 
++/* header: lg（md-wide の frontmatter）。大きな文字の図を置くページで、タイトル＞図の見出し＞結論の段差を作る */
++.slidev-layout.header-lg .md-title {
++  font-size: var(--md-size-title-lg);
++  font-weight: 700;
++  line-height: 1.2;
++}
++.slidev-layout.header-lg .md-conclusion {
++  font-size: var(--md-size-conclusion-lg);
++  font-weight: 400;
++  color: var(--md-fg-sub);
++  margin-top: var(--md-gap-title-conclusion-lg);
++}
++
+ .slidev-layout .md-body {
+   margin-top: var(--md-gap-conclusion-body);
+   flex: 1 1 auto;

@@ -1,0 +1,73 @@
+diff --git a/components/Step.vue b/components/Step.vue
+index 8e571a9..627e8cd 100644
+--- a/components/Step.vue
++++ b/components/Step.vue
+@@ -2,6 +2,7 @@
+ // 工程・手順。items の各要素は文字列か { label, sub }。dir: h（横）| v（縦）。
+ // highlight: 強調する要素の 0 始まりの番号。accent: 強調の色（既定 '1'）。
+ // size: 'md'（既定）| 'lg'。lg は横並びの大きな工程図で、全面レイアウト（md-wide）の中段を占める。
++//   lg は本文領域の上下中央に置き、箱の高さは中身と内側余白で決まる。
+ //   lg の items は { label, value, prefix, unit, desc } も使える。value は大きな数字、prefix / unit はその前後の小さな語、desc は中身の文。
+ //   例: { label: '第1段階', prefix: '約', value: '50', unit: '項目', desc: 'ログインと主要な画面遷移' }
+ import { computed } from 'vue'
+@@ -59,8 +60,7 @@ const arrowLength = computed(() => props.arrow ?? (lg.value ? 60 : 28))
+ .md-step.size-lg {
+   align-items: stretch;
+   gap: var(--md-gap-columns);
+-  height: var(--md-step-lg-height);
+-  margin-top: calc(var(--md-gap-conclusion-figure) - var(--md-gap-conclusion-body));
++  margin: auto 0; /* md-wide の本文領域（結論の下〜フッタの上）の上下中央に置く */
+ }
+ .md-step.size-lg .md-step-item {
+   display: flex;
+@@ -72,13 +72,13 @@ const arrowLength = computed(() => props.arrow ?? (lg.value ? 60 : 28))
+   font-weight: 400;
+ }
+ .md-step.size-lg .md-step-item.is-hl { font-weight: 700; }
+-.md-step.size-lg .md-step-label { font-size: var(--md-size-title); font-weight: 700; line-height: 1.4; }
++.md-step.size-lg .md-step-label { font-size: var(--md-size-figure-label); font-weight: 700; line-height: 1.4; }
+ .md-step.size-lg .md-step-value { line-height: 1.1; white-space: nowrap; }
+ .md-step.size-lg .md-step-num {
+   font-size: var(--md-size-figure-num);
+   font-variant-numeric: tabular-nums;
+   margin: 0 0.08em;
+ }
+-.md-step.size-lg .md-step-unit { font-size: var(--md-size-conclusion); }
++.md-step.size-lg .md-step-unit { font-size: var(--md-size-figure-unit); }
+ .md-step.size-lg .md-step-desc { font-size: var(--md-size-figure-desc); line-height: var(--md-line-height); overflow-wrap: anywhere; }
+ </style>
+diff --git a/style.css b/style.css
+index 4a5de6d..c226c07 100644
+--- a/style.css
++++ b/style.css
+@@ -23,8 +23,10 @@
+   --md-size-conclusion: 28px;
+   --md-size-body: 22px;
+   --md-size-note: 18px;          /* 最小。これ未満は使わない */
+-  --md-size-figure-num: 72px;    /* 大きな図の中の数字 */
+-  --md-size-figure-desc: 24px;   /* 大きな図の中の説明文 */
++  --md-size-figure-num: 130px;   /* 大きな図の中の数字 */
++  --md-size-figure-unit: 40px;   /* 大きな図の数字の前後の語（「約」「項目」） */
++  --md-size-figure-label: 44px;  /* 大きな図の中の段階名 */
++  --md-size-figure-desc: 32px;   /* 大きな図の中の説明文 */
+   --md-line-height: 1.5;
+ 
+   /* 余白 */
+@@ -35,7 +37,6 @@
+   --md-gap-item: 12px;
+   --md-gap-columns: 36px;
+   --md-figure-width: 45%;
+-  --md-gap-conclusion-figure: 80px; /* 結論から大きな図（Step size=lg）までの間隔 */
+ 
+   /* 図形 */
+   --md-radius: 5px;
+@@ -43,8 +44,7 @@
+   --md-stroke-strong: 2px;
+   --md-box-pad: 10px 16px;
+   --md-stroke-heavy: 3px;         /* 大きな図の矢印 */
+-  --md-box-pad-lg: 40px;          /* 大きな図の箱の内側余白 */
+-  --md-step-lg-height: 530px;     /* 大きな工程図（Step size=lg）の箱の高さ */
++  --md-box-pad-lg: 60px 40px;     /* 大きな図の箱の内側余白（上下 左右）。箱の高さは中身とこの余白で決まる */
+   --md-step-lg-gap: 20px;         /* 大きな工程図の箱の中の行間 */
+ }
+ 

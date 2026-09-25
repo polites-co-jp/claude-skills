@@ -2,7 +2,7 @@
 
 AI エージェントに開発を任せるための Skill 集。
 曖昧なアイデアから、Agent が安全に開発を進められる状態までを、3つの Skill の連鎖で整える。
-それとは別に、箇条書きの Markdown から Slidev のプレゼンテーションを作る `md-to-slidev` も置いている。
+それとは別に、箇条書きの Markdown から Slidev のプレゼンテーションを作る `md-to-slidev` と、完成した Slidev のページを画像で見て1ページずつ直す `slide-design-review` も置いている。
 
 ```text
 曖昧なアイデア（新規）
@@ -29,6 +29,7 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 | [project-design-harness](project-design-harness/) | 初版（作者の実プロジェクトで試用する前の段階） | 定義を入力に、開発を担う Agent・権限・検証・状態管理を `.claude/` 以下に作る。Claude Code 専用 |
 | 詳細設計の Skill | 構想中 | 上の2つを土台に、機能・要件・システム設計を詰める |
 | [md-to-slidev](md-to-slidev/) | 初版（作者の実プレゼンで試用する前の段階） | 上の連鎖とは独立。箇条書きの Markdown から、白基調・図解優先の Slidev プレゼンテーションを作る |
+| [slide-design-review](slide-design-review/) | 初版（同梱の完成例の1ページで試した段階） | 上の連鎖とは独立。Slidev のページをレンダリングした画像でデザインをレビューし、直して、別の目で再評価するループを回す。Claude Code 専用 |
 
 ### project-design-opening
 
@@ -90,6 +91,20 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 
 完成例は [md-to-slidev/assets/example/](md-to-slidev/assets/example/)（入力・計画・`slides.md`）。同梱の部品は CI で実際にビルドして確かめている。
 
+### slide-design-review
+
+完成した Slidev のスライドを、1ページずつ画像として見て直す。md-to-slidev で作ったデッキにも、手で書いたデッキにも使える。
+
+- **流れ**: レンダリング → レビュー → 直す問題を決める → 直す → 再レンダリング → 新旧の比較 → 再レビュー。重大な問題が無くなるか、良くならなくなるか、修正3回（既定）で止まる
+- **役を分ける**: 主セッションは進行役で、直さず、評価もしない。レビュー役（今の画像だけを見る）、実装役（指摘された問題だけを直す）、比較役（新旧を伏せた2枚を比べる）を、毎回新しい subagent として呼ぶ。直した本人が評価しないので、自己評価の甘さが入りにくい
+- **レビューの基準**: 視覚的な階層、配置、余白、文字組み、情報密度、バランス、装飾の意味、そして「素人っぽく見える原因」。何が問題か、なぜ問題か、どう直すか、直ったらどう見えるかまでを、画像の上の場所で書かせる。指摘は優先度の高い3つまで
+- **レンダリング**: Slidev 公式の `slidev export --format png` をキャンバス等倍で使う（`playwright-chromium` が要る）。修正のたびに全ページを書き出し、前後を画素で比べる。同じソースの書き出しはバイト単位で一致するので、対象外のページが変わればすぐ分かり、後退していれば戻す
+- **記録**: デッキの隣の `design-review/` に、ページごとのレビュー・変更記録・差分・比較・経過表を残す。ページをまたいで出た症状は `patterns.md` に貯め、テーマや部品への共通化の候補として挙げる
+- **やらないこと**: 内容・主張の変更、情報の削除（画面から外すなら発表者ノートへ）、ページの分割・追加・並べ替え（提案として報告）
+- **前提**: Claude Code（subagent を使う）、Slidev が入ったプロジェクト、`playwright-chromium`（プロジェクトかグローバル。無ければ導入先を聞く）
+
+完成例は [slide-design-review/assets/example/](slide-design-review/assets/example/)（md-to-slidev の完成例の7ページ目を3回直した記録と、各回の画像）。
+
 ## 導入
 
 [skills CLI](https://github.com/vercel-labs/skills) を使う場合:
@@ -99,9 +114,10 @@ npx skills add polites-co-jp/claude-skills --skill project-design-opening
 npx skills add polites-co-jp/claude-skills --skill project-design-reboot
 npx skills add polites-co-jp/claude-skills --skill project-design-harness
 npx skills add polites-co-jp/claude-skills --skill md-to-slidev
+npx skills add polites-co-jp/claude-skills --skill slide-design-review
 ```
 
-手で入れる場合は、`project-design-opening/`、`project-design-reboot/`、`project-design-harness/`、`md-to-slidev/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
+手で入れる場合は、`project-design-opening/`、`project-design-reboot/`、`project-design-harness/`、`md-to-slidev/`、`slide-design-review/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
 （Claude Code なら `~/.claude/skills/` か、プロジェクトの `.claude/skills/`）。
 
 ## 使い方
@@ -135,13 +151,21 @@ npx skills add polites-co-jp/claude-skills --skill md-to-slidev
 
 スライド計画を1回確認すると、`slides.md` と部品が書き出される。`npm run dev` で開ける。
 
+できたスライドの見た目を直すときは、Slidev のプロジェクトで Claude Code に次のように頼む。
+
+```text
+このスライドの 7 ページ目をデザインレビューして改善して。
+```
+
+「全ページを」と頼めば、先頭から1ページずつ順に回す。経過は `design-review/page-07/log.md` に、最初と最後の画像は同じフォルダの `r0.png` と最後の `rN.png` に残る。
+
 ## 設計の記録
 
 各 Skill の設計判断とその理由は [docs/decisions/](docs/decisions/) に残してある。
 
 ## 開発
 
-`project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラ、`md-to-slidev` の部品には、リポジトリに自動テストがある。
+`project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラ、`md-to-slidev` の部品、`slide-design-review` のスクリプト（書き出し・画素比較・退避と復元）には、リポジトリに自動テストがある。
 push・pull request のたびに GitHub Actions で実行される（[.github/workflows/ci.yml](.github/workflows/ci.yml)）。
 ローカルでの実行方法は [tests/README.md](tests/README.md)。
 
