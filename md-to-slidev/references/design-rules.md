@@ -14,6 +14,7 @@
 |---|---|---|
 | 背景 | `#FFFFFF` | `--md-bg` |
 | 基本文字色 | `#222222` | `--md-fg` |
+| 従う文字（結論行） | `#555555` | `--md-fg-sub` |
 | 薄い線（境界線・矢印） | `#B5B9BD` | `--md-line` |
 | 重要な線 | `#222222` | `--md-line-strong` |
 | アクセント1 Blue Gray | `#4F6D7A` | `--md-accent-1` |
@@ -34,11 +35,12 @@
 |---|---|---|---|
 | 表紙タイトル | 64px | Bold | `--md-size-cover` |
 | セクションタイトル | 56px | Medium | `--md-size-section` |
-| タイトル | 32px | Medium | `--md-size-title` |
-| 結論 | 28px | Bold | `--md-size-conclusion` |
+| タイトル | 40px | Bold | `--md-size-title` |
+| 結論 | 28px | Regular（色は `--md-fg-sub`） | `--md-size-conclusion` |
 | 本文 | 22px | Regular | `--md-size-body` |
 | 補足・ラベル・フッター | 18px | Regular | `--md-size-note` |
 
+- タイトルは結論行より、大きさ（約1.4倍）と太さの両方で強くする。結論行を太字にしない。タイトルと結論行が同じ強さに見えると、どちらから読むか迷う
 - **18px 未満の文字は使わない**。部品は最小 18px で作ってある。`slides.md` で `text-sm` のようなクラスや `font-size` を書かない
 - line-height 1.5。日本語の letter-spacing は標準（タイトルだけ 0.01em）
 - キャンバスは 1920×1080（`canvasWidth: 1920`）。上の px はこのキャンバス上の値。文字を大きくしたいときは `style.css` の変数を変える

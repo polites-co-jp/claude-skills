@@ -6,6 +6,7 @@
   /* 色 */
   --md-bg: #ffffff;
   --md-fg: #222222;
+  --md-fg-sub: #555555;          /* 結論行など、タイトルに従う文字 */
   --md-line: #b5b9bd;            /* 薄い境界線・矢印 */
   --md-line-strong: #222222;     /* 重要な線 */
   --md-accent-1: #4f6d7a;        /* Blue Gray */
@@ -19,7 +20,7 @@
   --md-font: 'Noto Sans JP', sans-serif;
   --md-size-cover: 64px;
   --md-size-section: 56px;
-  --md-size-title: 32px;
+  --md-size-title: 40px;
   --md-size-conclusion: 28px;
   --md-size-body: 22px;
   --md-size-note: 18px;          /* 最小。これ未満は使わない */
@@ -67,14 +68,15 @@
 
 .slidev-layout .md-title {
   font-size: var(--md-size-title);
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.35;
   letter-spacing: 0.01em;
 }
 
 .slidev-layout .md-conclusion {
   font-size: var(--md-size-conclusion);
-  font-weight: 700;
+  font-weight: 400;
+  color: var(--md-fg-sub);
   line-height: 1.4;
   margin-top: var(--md-gap-title-conclusion);
   opacity: 1; /* theme-default の h1 + p { opacity: .5 } を打ち消す */

@@ -3,6 +3,7 @@
 この Skill を実際に1ページで回したときの記録一式（2026-09-25、Slidev 53.0.0、playwright-chromium 1.63.0）。
 対象は、同じリポジトリの md-to-slidev に同梱している完成例（[../../../md-to-slidev/assets/example/slides.md](../../../md-to-slidev/assets/example/slides.md)）の 7 ページ目「自動化は一度に全部やらず、3段階で広げる」。
 一時フォルダに展開したデッキで回したので、md-to-slidev 本体の部品は変えていない。
+この記録で毎回挙がった「タイトルが結論行より弱い」は、その後 md-to-slidev 側で直した（[md-to-slidev の M19](../../../docs/decisions/md-to-slidev.md)）。今の md-to-slidev で同じページを書き出すと、r0.png とは見出しの組みが違う。
 
 | 画像 | 状態 |
 |---|---|
