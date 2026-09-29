@@ -37,12 +37,12 @@ const norm = (it) => (typeof it === 'string' ? { label: it } : it)
   line-height: 1.4;
   box-sizing: border-box;
 }
-.md-layer-item.is-hl { border-width: var(--md-stroke-strong); font-weight: 700; }
+.md-layer-item.is-hl { border-width: var(--md-stroke-strong); font-weight: 500; background: var(--md-accent-1-tint); }
 .md-layer.accent-1 .md-layer-item.is-hl { border-color: var(--md-accent-1); }
 .md-layer.accent-2 .md-layer-item.is-hl { border-color: var(--md-accent-2); }
 .md-layer.accent-3 .md-layer-item.is-hl { border-color: var(--md-accent-3); }
 .md-layer-item.tint-1 { background: var(--md-accent-1-tint); }
 .md-layer-item.tint-2 { background: var(--md-accent-2-tint); }
 .md-layer-item.tint-3 { background: var(--md-accent-3-tint); }
-.md-layer-sub { font-size: var(--md-size-note); font-weight: 400; white-space: nowrap; }
+.md-layer-sub { font-size: var(--md-size-note); font-weight: 400; color: var(--md-muted); white-space: nowrap; }
 </style>

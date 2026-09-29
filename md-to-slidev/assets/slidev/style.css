@@ -1,56 +1,82 @@
-/* md-to-slidev のデザイン変数と基本スタイル。
+/* md-to-slidev のスライドテーマ（本文左・仕様欄右）。
    デザインを変えるときはこのファイルと layouts/・components/ だけを差し替える。slides.md は触らない。
-   値は 1920×1080 のキャンバス（headmatter の canvasWidth: 1920）に対する px。 */
+   値は 1920×1080 のキャンバス（canvasWidth: 1920）に対する px。 */
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600&display=swap');
 
 :root {
-  /* 色 */
+  /* 色（白地・墨・ヘアライン＋スチールブルー1色） */
   --md-bg: #ffffff;
-  --md-fg: #222222;
-  --md-fg-sub: #555555;          /* 結論行など、タイトルに従う文字 */
-  --md-line: #b5b9bd;            /* 薄い境界線・矢印 */
-  --md-line-strong: #222222;     /* 重要な線 */
-  --md-accent-1: #4f6d7a;        /* Blue Gray */
-  --md-accent-2: #5f8078;        /* Muted Teal */
-  --md-accent-3: #b08a4a;        /* Ochre */
-  --md-accent-1-tint: rgba(79, 109, 122, 0.10);
-  --md-accent-2-tint: rgba(95, 128, 120, 0.10);
-  --md-accent-3-tint: rgba(176, 138, 74, 0.12);
+  --md-fg: #1d1f20;
+  --md-sub: #4a4f54;
+  /* 補足文 */
+  --md-muted: #6a6f74;
+  /* ラベル・軸見出し */
+  --md-line: #b9bcc0;
+  /* 枠・罫 */
+  --md-line-soft: #d3d5d8;
+  /* 表の行罫 */
+  --md-line-strong: #4a4f54;
+  /* 矢印・接続線 */
+  --md-fill: #e4e6e9;
+  /* 表の見出し行 */
+  --md-accent-1: #5980a6;
+  /* スチールブルー */
+  --md-accent-1-label: #3d5a78;
+  --md-accent-1-deep: #2c4660;
+  /* 結論の文字 */
+  --md-accent-2: #3d5a78;
+  --md-accent-3: #6a6f74;
+  --md-accent-1-tint: #dde6ef;
+  --md-accent-2-tint: #e4ebf2;
+  --md-accent-3-tint: #eceef0;
 
-  /* フォント・タイポグラフィ */
+  /* フォント */
   --md-font: 'Noto Sans JP', sans-serif;
-  --md-size-cover: 64px;
-  --md-size-section: 56px;
-  --md-size-title: 40px;
-  --md-size-conclusion: 28px;
-  --md-size-body: 22px;
-  --md-size-note: 18px;          /* 最小。これ未満は使わない */
+  --md-font-label: 'Barlow Condensed', 'Noto Sans JP', sans-serif;
+
+  /* 文字サイズ */
+  --md-size-cover: 132px;
+  --md-size-cover-sub: 40px;
+  --md-size-section-num: 200px;
+  --md-size-section: 96px;
+  --md-size-title: 44px;
+  --md-size-conclusion: 30px;
+  --md-size-body: 26px;
+  --md-size-note: 22px;
+  --md-size-label: 22px;
+  /* SECTION / CONCLUSION などの英字ラベル */
+  --md-size-code: 18px;
+  /* 仕様書サンプルのコードブロック用。例外的に小さい */
   --md-line-height: 1.5;
 
-  /* 余白 */
-  --md-pad-x: 48px;
-  --md-pad-y: 40px;
-  --md-gap-title-conclusion: 18px;
-  --md-gap-conclusion-body: 22px;
-  --md-gap-item: 12px;
-  --md-gap-columns: 36px;
+  /* 余白・枠 */
+  --md-frame: 56px;
+  /* スライド外周から枠線まで */
+  --md-side-width: 440px;
+  /* 右の仕様欄の幅 */
+  --md-pad-main: 64px 72px;
+  --md-pad-side: 28px 36px;
+  --md-pad-cover: 120px 140px 90px;
+  --md-gap-title-body: 40px;
+  --md-gap-item: 18px;
+  --md-gap-columns: 48px;
   --md-figure-width: 45%;
 
   /* 図形 */
-  --md-radius: 5px;
+  --md-radius: 0px;
   --md-stroke: 1.25px;
   --md-stroke-strong: 2px;
-  --md-box-pad: 10px 16px;
+  --md-box-pad: 12px 18px;
 }
 
-/* ---- レイアウト共通（presenter UI に漏れないよう .slidev-layout 配下に限定） ---- */
-
+/* ---- 共通 ---- */
 .slidev-layout {
   background: var(--md-bg);
   color: var(--md-fg);
   font-family: var(--md-font);
   font-size: var(--md-size-body);
   line-height: var(--md-line-height);
-  padding: var(--md-pad-y) var(--md-pad-x);
+  padding: 0;
   box-sizing: border-box;
   height: 100%;
   display: flex;
@@ -66,31 +92,57 @@
   margin: 0;
 }
 
-.slidev-layout .md-title {
-  font-size: var(--md-size-title);
+.slidev-layout strong {
   font-weight: 700;
-  line-height: 1.35;
-  letter-spacing: 0.01em;
 }
 
-.slidev-layout .md-conclusion {
-  font-size: var(--md-size-conclusion);
-  font-weight: 400;
-  color: var(--md-fg-sub);
-  line-height: 1.4;
-  margin-top: var(--md-gap-title-conclusion);
-  opacity: 1; /* theme-default の h1 + p { opacity: .5 } を打ち消す */
+.slidev-layout .md-note {
+  font-size: var(--md-size-note);
+}
+
+/* ---- 本文スライド（md-standard / md-wide / md-toc）: 左に本文、右に仕様欄 ---- */
+.slidev-layout.md-sheet {
+  padding: var(--md-frame);
+}
+
+.slidev-layout .md-sheet-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* border: 1px solid var(--md-line); */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--md-side-width);
+}
+
+.slidev-layout .md-main {
+  padding: var(--md-pad-main);
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-gap-title-body);
+  min-width: 0;
+  min-height: 0;
+}
+
+.slidev-layout .md-title {
+  font-size: var(--md-size-title);
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  text-wrap: pretty;
+  white-space: pre-line;
 }
 
 .slidev-layout .md-body {
-  margin-top: var(--md-gap-conclusion-body);
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   gap: var(--md-gap-columns);
 }
 
-.slidev-layout .md-text { flex: 1 1 auto; min-width: 0; }
+.slidev-layout .md-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .slidev-layout .md-figure {
   flex: 0 0 var(--md-figure-width);
   display: flex;
@@ -100,124 +152,333 @@
   min-width: 0;
 }
 
-/* 本文の箇条書き: 2段目が説明、3段目が補足 */
-.slidev-layout .md-text ul,
-.slidev-layout .md-wide-body ul {
-  list-style: none;
-  padding-left: 0;
-}
-.slidev-layout .md-text > ul > li,
-.slidev-layout .md-wide-body > ul > li {
-  position: relative;
-  padding-left: 1em;
+.slidev-layout .md-note {
+  flex: 0 0 auto;
   margin-top: var(--md-gap-item);
 }
-.slidev-layout .md-text > ul > li:first-child,
-.slidev-layout .md-wide-body > ul > li:first-child { margin-top: 0; }
-.slidev-layout .md-text > ul > li::before,
-.slidev-layout .md-wide-body > ul > li::before {
+
+/* 仕様欄 */
+.slidev-layout .md-side {
+  border-left: 1px solid var(--md-line);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.slidev-layout .md-side-cell {
+  padding: var(--md-pad-side);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slidev-layout .md-side-section {
+  border-bottom: 1px solid var(--md-line);
+}
+
+.slidev-layout .md-side-label {
+  font-family: var(--md-font-label);
+  font-size: var(--md-size-label);
+  letter-spacing: 0.2em;
+  color: var(--md-muted);
+}
+
+.slidev-layout .md-side-section-name {
+  font-size: var(--md-size-body);
+  line-height: 1.4;
+  display: flex;
+  gap: 12px;
+}
+
+.slidev-layout .md-side-section-num {
+  font-family: var(--md-font-label);
+}
+
+.slidev-layout .md-side-section-title {
+  white-space: pre-line;
+}
+
+.slidev-layout .md-side-conclusion {
+  gap: 14px;
+}
+
+.slidev-layout .md-side-conclusion .md-side-label {
+  color: var(--md-accent-1-label);
+}
+
+.slidev-layout .md-side-conclusion-text {
+  font-size: var(--md-size-conclusion);
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--md-accent-1-deep);
+  text-wrap: pretty;
+  white-space: pre-line;
+}
+
+.slidev-layout .md-side-foot {
+  border-top: 1px solid var(--md-line);
+  padding: 22px 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--md-font-label);
+  font-size: 26px;
+}
+
+.slidev-layout .md-side-brand {
+  letter-spacing: 0.22em;
+}
+
+.slidev-layout .md-side-page {
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+
+.slidev-layout .md-side-total {
+  color: var(--md-muted);
+}
+
+/* 本文の箇条書き: 1段目は箇条書きアイコン、2段目は補足 */
+.slidev-layout .md-text>ul,
+.slidev-layout .md-wide-body>ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--md-gap-item);
+}
+
+.slidev-layout .md-text>ul>li,
+.slidev-layout .md-wide-body>ul>li {
+  position: relative;
+  padding-left: 1.4em;
+}
+
+.slidev-layout .md-text>ul>li::before,
+.slidev-layout .md-wide-body>ul>li::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0.62em;
-  width: 0.35em;
-  height: 0.35em;
+  left: 2px;
+  top: 0.6em;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--md-fg);
+  background: var(--md-accent-1);
 }
+
 .slidev-layout .md-text ul ul,
 .slidev-layout .md-wide-body ul ul {
+  list-style: none;
+  padding: 0;
+  margin-top: 6px;
   font-size: var(--md-size-note);
-  margin-top: 4px;
-  padding-left: 0.2em;
+  color: var(--md-sub);
 }
+
 .slidev-layout .md-text ul ul li,
 .slidev-layout .md-wide-body ul ul li {
-  padding-left: 1em;
-  position: relative;
   margin-top: 4px;
 }
-.slidev-layout .md-text ul ul li::before,
-.slidev-layout .md-wide-body ul ul li::before {
-  content: '–';
-  position: absolute;
-  left: 0;
-  top: 0;
-}
 
-.slidev-layout strong { font-weight: 700; }
-.slidev-layout .md-note { font-size: var(--md-size-note); }
-
-/* 表（Markdown の表を使う場合） */
+/* 表（Markdown の表） */
 .slidev-layout table {
   border-collapse: collapse;
   font-size: var(--md-size-body);
 }
+
 .slidev-layout th,
 .slidev-layout td {
   border: var(--md-stroke) solid var(--md-line);
-  padding: 8px 14px;
+  padding: 10px 16px;
   text-align: left;
   vertical-align: top;
 }
-.slidev-layout th { font-weight: 700; }
+
+.slidev-layout th {
+  font-weight: 500;
+  background: var(--md-fill);
+}
 
 /* コード */
 .slidev-layout pre,
 .slidev-layout code {
-  font-size: var(--md-size-note);
+  font-size: var(--md-size-code);
 }
 
-/* ---- フッター ---- */
-.slidev-layout .md-footer {
+.slidev-layout pre {
+  border: 1px solid var(--md-line);
+  border-radius: 0;
+}
+
+/* ---- 表紙 ---- */
+.slidev-layout.md-cover {
+  padding: var(--md-pad-cover);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 520px;
+  gap: 80px;
+  align-items: center;
+}
+
+.slidev-layout .md-cover-main {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  min-width: 0;
+}
+
+.slidev-layout .md-cover-kicker {
+  font-family: var(--md-font-label);
+  font-size: 28px;
+  letter-spacing: 0.28em;
+  color: var(--md-muted);
+}
+
+.slidev-layout .md-cover-title {
+  font-size: var(--md-size-cover);
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  white-space: pre-line;
+}
+
+.slidev-layout .md-cover-subtitle {
+  font-size: var(--md-size-cover-sub);
+  color: var(--md-sub);
+  line-height: 1.7;
+}
+
+.slidev-layout .md-cover-meta {
+  display: flex;
+  gap: 40px;
+  align-items: baseline;
+  border-top: 1px solid var(--md-line-soft);
+  padding-top: 32px;
+  font-size: 28px;
+  color: var(--md-sub);
+}
+
+.slidev-layout .md-cover-date {
+  font-family: var(--md-font-label);
+  letter-spacing: 0.12em;
+  color: var(--md-muted);
+}
+
+.slidev-layout .md-cover-logo {
+  width: 100%;
+  display: block;
+}
+
+/* ---- セクション区切り ---- */
+.slidev-layout.md-section {
+  padding: 120px 140px 90px;
+}
+
+.slidev-layout .md-section-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 40px;
+}
+
+.slidev-layout .md-section-kicker {
+  display: flex;
+  gap: 32px;
+  align-items: baseline;
+  font-family: var(--md-font-label);
+  font-size: 32px;
+  letter-spacing: 0.28em;
+}
+
+.slidev-layout .md-section-kicker-count {
+  color: var(--md-muted);
+}
+
+.slidev-layout .md-section-frame {
+  position: relative;
+  border: 1px solid var(--md-line);
+  padding: 80px 88px;
+  display: flex;
+  align-items: baseline;
+  gap: 64px;
+}
+
+.slidev-layout .md-corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+}
+
+.slidev-layout .md-corner.tl {
+  top: -14px;
+  left: -14px;
+  border-top: 2px solid var(--md-muted);
+  border-left: 2px solid var(--md-muted);
+}
+
+.slidev-layout .md-corner.br {
+  bottom: -14px;
+  right: -14px;
+  border-bottom: 2px solid var(--md-muted);
+  border-right: 2px solid var(--md-muted);
+}
+
+.slidev-layout .md-section-num {
+  font-family: var(--md-font-label);
+  font-weight: 300;
+  font-size: var(--md-size-section-num);
+  line-height: 0.8;
+  flex: 0 0 auto;
+}
+
+.slidev-layout .md-section-title {
+  font-size: var(--md-size-section);
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+  text-wrap: pretty;
+  white-space: pre-line;
+}
+
+.slidev-layout .md-section-subtitle {
+  font-size: var(--md-size-conclusion);
+  color: var(--md-sub);
+}
+
+.slidev-layout .md-rule-footer {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: var(--md-size-note);
-  color: var(--md-fg);
-  margin-top: 16px;
+  border-top: 1px solid var(--md-line-soft);
+  padding-top: 24px;
+  font-size: 24px;
+  color: var(--md-muted);
 }
-.slidev-layout .md-footer-page { font-variant-numeric: tabular-nums; }
 
-/* ---- 表紙・セクション区切り・目次 ---- */
-.slidev-layout.md-cover,
-.slidev-layout.md-section {
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+.slidev-layout .md-rule-footer-brand {
+  font-family: var(--md-font-label);
+  letter-spacing: 0.22em;
+  color: var(--md-fg);
 }
-.slidev-layout .md-cover-title {
-  font-size: var(--md-size-cover);
-  font-weight: 700;
-  line-height: 1.3;
-}
-.slidev-layout .md-cover-subtitle {
-  font-size: var(--md-size-conclusion);
-  font-weight: 400;
-  margin-top: 24px;
-  opacity: 1;
-}
-.slidev-layout .md-cover-meta {
-  font-size: var(--md-size-body);
-  margin-top: 40px;
-}
-.slidev-layout .md-section-title {
-  font-size: var(--md-size-section);
-  font-weight: 500;
-  line-height: 1.3;
-}
-.slidev-layout .md-section-subtitle {
-  font-size: var(--md-size-conclusion);
-  font-weight: 400;
-  margin-top: 20px;
-  opacity: 1;
-}
+
+/* ---- 目次 ---- */
 .slidev-layout .md-toc-list {
   list-style: none;
   padding: 0;
-  margin-top: var(--md-gap-conclusion-body);
   font-size: var(--md-size-conclusion);
+  border-top: 1px solid var(--md-line-soft);
 }
-.slidev-layout .md-toc-list li { margin-top: 16px; display: flex; gap: 24px; }
-.slidev-layout .md-toc-list li:first-child { margin-top: 0; }
-.slidev-layout .md-toc-num { font-variant-numeric: tabular-nums; color: var(--md-accent-1); font-weight: 500; }
+
+.slidev-layout .md-toc-list li {
+  display: flex;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--md-line-soft);
+}
+
+.slidev-layout .md-toc-num {
+  font-family: var(--md-font-label);
+  color: var(--md-accent-1);
+  min-width: 2em;
+}

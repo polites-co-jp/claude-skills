@@ -43,8 +43,11 @@ const rows = computed(() => Math.max(props.axes.length, ...props.columns.map((c)
   text-align: left;
   vertical-align: top;
 }
-.md-compare thead th { font-weight: 700; text-align: center; }
-.md-compare-axis { font-weight: 500; white-space: nowrap; font-size: var(--md-size-note); }
+.md-compare th, .md-compare td { padding: 12px 20px; }
+.md-compare tbody td, .md-compare tbody th { border-top-color: var(--md-line-soft); border-bottom-color: var(--md-line-soft); }
+.md-compare thead th { font-weight: 500; text-align: left; background: var(--md-fill); }
+.md-compare thead th.is-hl { background: var(--md-accent-1-tint); color: var(--md-accent-1-deep); }
+.md-compare-axis { font-weight: 400; white-space: nowrap; font-size: var(--md-size-note); color: var(--md-muted); }
 .md-compare .is-hl { border-left-width: var(--md-stroke-strong); border-right-width: var(--md-stroke-strong); }
 .md-compare.accent-1 .is-hl { border-left-color: var(--md-accent-1); border-right-color: var(--md-accent-1); }
 .md-compare.accent-2 .is-hl { border-left-color: var(--md-accent-2); border-right-color: var(--md-accent-2); }

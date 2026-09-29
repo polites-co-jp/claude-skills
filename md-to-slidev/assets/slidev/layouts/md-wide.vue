@@ -1,22 +1,25 @@
 <script setup>
-// 全面レイアウト: タイトル → 結論 → 全幅の本文（全面図解・大きな比較表など）。
+// 全面レイアウト（2b）: 左にタイトル → 全幅の本文（大きな比較表など）、右の仕様欄に結論とページ数。
 // frontmatter: title, conclusion, section(任意)
 import { computed, unref } from 'vue'
 import { useSlideContext } from '@slidev/client'
-import MdFooter from '../components/MdFooter.vue'
+import MdSide from '../components/MdSide.vue'
 
 const ctx = useSlideContext()
 const fm = computed(() => unref(ctx.$frontmatter) || {})
 </script>
 
 <template>
-  <div class="slidev-layout md-wide">
-    <h1 class="md-title">{{ fm.title }}</h1>
-    <p v-if="fm.conclusion" class="md-conclusion">{{ fm.conclusion }}</p>
-    <div class="md-body">
-      <div class="md-wide-body"><slot /></div>
+  <div class="slidev-layout md-sheet md-wide">
+    <div class="md-sheet-frame">
+      <div class="md-main">
+        <h1 class="md-title">{{ fm.title }}</h1>
+        <div class="md-body">
+          <div class="md-wide-body"><slot /></div>
+        </div>
+      </div>
+      <MdSide :conclusion="fm.conclusion || ''" />
     </div>
-    <MdFooter />
   </div>
 </template>
 
@@ -26,7 +29,7 @@ const fm = computed(() => unref(ctx.$frontmatter) || {})
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--md-gap-item);
 }
 </style>

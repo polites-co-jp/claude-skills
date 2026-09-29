@@ -77,17 +77,18 @@ const head = (i) => {
   stroke-linejoin: round;
 }
 .md-branch-to { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
-.md-branch-item.is-hl { border-width: var(--md-stroke-strong); font-weight: 700; }
+.md-branch-item.is-hl { border-width: var(--md-stroke-strong); font-weight: 500; background: var(--md-accent-1-tint); }
 .md-branch.accent-1 .md-branch-item.is-hl { border-color: var(--md-accent-1); }
 .md-branch.accent-2 .md-branch-item.is-hl { border-color: var(--md-accent-2); }
 .md-branch.accent-3 .md-branch-item.is-hl { border-color: var(--md-accent-3); }
-.md-branch-sub { font-size: var(--md-size-note); font-weight: 400; }
+.md-branch-sub { font-size: var(--md-size-note); font-weight: 400; color: var(--md-muted); }
 .md-branch-tag {
   font-size: var(--md-size-note);
   font-weight: 400;
   white-space: nowrap;
   border: var(--md-stroke) solid var(--md-line);
   border-radius: var(--md-radius);
-  padding: 0 8px;
+  padding: 0 10px;
+  color: var(--md-sub);
 }
 </style>

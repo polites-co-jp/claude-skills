@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Regression test for the bundled Slidev parts: copies assets/slidev/* and the example deck into a temp
-// project, checks that every layout/component the example uses exists, then installs Slidev and builds.
+// Regression test for the bundled Slidev parts: copies assets/slidev/* and the example deck (plus
+// tests/parts-gallery.md, which exercises every component and md-toc) into a temp project, runs static
+// checks on the parts and on the example's writing rules, then installs Slidev and builds.
 // Run: node md-to-slidev/tests/build-example.mjs          (set SKIP_BUILD=1 to run only the static checks)
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -18,32 +19,56 @@ function check(name, ok, detail = '') {
 }
 
 const slides = fs.readFileSync(path.join(example, 'slides.md'), 'utf8');
+const gallery = fs.readFileSync(path.join(skill, 'tests/parts-gallery.md'), 'utf8');
+const deck = `${slides.trimEnd()}\n${gallery}`;
 const layouts = fs.readdirSync(path.join(parts, 'layouts')).map((f) => f.replace(/\.vue$/, ''));
 const components = fs.readdirSync(path.join(parts, 'components')).map((f) => f.replace(/\.vue$/, ''));
+const internal = ['MdSide'];
 
-// 1. every layout the example uses exists, and every bundled layout is exercised by the example
-const usedLayouts = [...new Set([...slides.matchAll(/^layout:\s*(\S+)/gm)].map((m) => m[1]))];
-check('example uses only bundled layouts', usedLayouts.every((l) => layouts.includes(l)), usedLayouts.filter((l) => !layouts.includes(l)).join(','));
-check('every bundled layout appears in the example', layouts.every((l) => usedLayouts.includes(l)), layouts.filter((l) => !usedLayouts.includes(l)).join(','));
+// 1. layouts: the example uses only bundled ones; every bundled one is exercised (md-toc only by the gallery)
+const layoutsIn = (text) => [...new Set([...text.matchAll(/^layout:\s*(\S+)/gm)].map((m) => m[1]))];
+check('example uses only bundled layouts', layoutsIn(slides).every((l) => layouts.includes(l)), layoutsIn(slides).filter((l) => !layouts.includes(l)).join(','));
+check('every bundled layout except md-toc appears in the example', layouts.filter((l) => l !== 'md-toc').every((l) => layoutsIn(slides).includes(l)), layouts.filter((l) => l !== 'md-toc' && !layoutsIn(slides).includes(l)).join(','));
+check('every bundled layout is built', layouts.every((l) => layoutsIn(deck).includes(l)), layouts.filter((l) => !layoutsIn(deck).includes(l)).join(','));
 
-// 2. every component tag the example uses exists (tags are PascalCase; MdFooter is internal to layouts)
-const usedComponents = [...new Set([...slides.matchAll(/<([A-Z][A-Za-z]+)[\s/>]/g)].map((m) => m[1]))];
-check('example uses only bundled components', usedComponents.every((c) => components.includes(c)), usedComponents.filter((c) => !components.includes(c)).join(','));
+// 2. components: only bundled ones are used, and every public one is built
+const usedComponents = [...new Set([...deck.matchAll(/<([A-Z][A-Za-z]+)[\s/>]/g)].map((m) => m[1]))];
+check('deck uses only bundled components', usedComponents.every((c) => components.includes(c)), usedComponents.filter((c) => !components.includes(c)).join(','));
+const unbuilt = components.filter((c) => !internal.includes(c) && !usedComponents.includes(c));
+check('every bundled component is built', unbuilt.length === 0, unbuilt.join(','));
 
 // 3. the design contract: no ad-hoc styling in slides.md, no font size below 18px in the parts
-check('slides.md has no <style> or inline size/color', !/<style|font-size|text-\w+|color:/.test(slides));
+check('slides.md has no <style>, style= or size/color classes', !/<style|style=|font-size|\btext-(xs|sm|base|lg|xl)|color:/.test(deck));
 for (const f of fs.readdirSync(path.join(parts, 'components')).concat(fs.readdirSync(path.join(parts, 'layouts')).map((x) => `../layouts/${x}`))) {
   const text = fs.readFileSync(path.join(parts, 'components', f), 'utf8');
   const small = [...text.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1])).filter((n) => n < 18);
   check(`${path.basename(f)} has no font-size below 18px`, small.length === 0, small.join(','));
 }
 const css = fs.readFileSync(path.join(parts, 'style.css'), 'utf8');
-check('style.css defines the palette and the 18px minimum', /--md-fg:\s*#222222/.test(css) && /--md-size-note:\s*18px/.test(css));
+check('style.css defines the palette and the 22px text minimum', /--md-fg:\s*#1d1f20/i.test(css) && /--md-size-note:\s*22px/.test(css) && /--md-side-width:\s*440px/.test(css));
 check('style.css has no shadow or gradient', !/box-shadow|gradient\(/.test(css));
+check('md-section and MdSide share composables/chapters.ts', fs.existsSync(path.join(parts, 'composables/chapters.ts')));
 
-// 4. documentation references every component and layout
+// 4. the example follows the writing rules (references/writing.md)
+const frontmatters = [...slides.matchAll(/^---\n([\s\S]*?)\n---/gm)].map((m) => m[1]);
+const bodySlides = frontmatters.filter((f) => /^layout:\s*md-(standard|shots|stack|wide)/m.test(f));
+for (const f of bodySlides) {
+  const title = (f.match(/^title:\s*(.+)$/m) || [])[1] || '';
+  check(`title is a topic name: ${title}`, title.length <= 20 && !/[。、]/.test(title), title);
+  const block = f.match(/^conclusion:\s*\|-\n((?:  .*\n?|\n)+)/m);
+  check(`conclusion is a |- block: ${title}`, !!block);
+  if (block) {
+    const lines = block[1].split('\n').map((l) => l.trim()).filter(Boolean);
+    const width = (l) => [...l].reduce((w, ch) => w + (/[ -~]/.test(ch) ? 0.5 : 1), 0); // full-width = 1, ASCII = 0.5
+    const long = lines.filter((l) => width(l) > 13);
+    check(`conclusion lines are ~12 chars: ${title}`, long.length === 0 && lines.length >= 2 && lines.length <= 5, long.join(' | '));
+  }
+}
+check('no speaker-note timing in the example', !/想定時間/.test(slides));
+
+// 5. documentation references every component and layout
 const docs = fs.readFileSync(path.join(skill, 'references/components.md'), 'utf8');
-for (const c of components.filter((c) => c !== 'MdFooter')) check(`components.md documents ${c}`, docs.includes(`### ${c}`) || docs.includes(`\`${c}\``));
+for (const c of components.filter((c) => !internal.includes(c))) check(`components.md documents ${c}`, docs.includes(`### ${c}`) || docs.includes(`\`${c}\``));
 for (const l of layouts) check(`components.md documents ${l}`, docs.includes(`\`${l}\``));
 
 if (process.env.SKIP_BUILD) {
@@ -51,14 +76,11 @@ if (process.env.SKIP_BUILD) {
   process.exit(bad ? 1 : 0);
 }
 
-// 5. install and build in a temp project
+// 6. install and build in a temp project
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'md-to-slidev-'));
 const copy = (src, dst) => fs.cpSync(src, dst, { recursive: true });
-copy(path.join(parts, 'layouts'), path.join(work, 'layouts'));
-copy(path.join(parts, 'components'), path.join(work, 'components'));
-copy(path.join(parts, 'style.css'), path.join(work, 'style.css'));
-copy(path.join(parts, 'package.json'), path.join(work, 'package.json'));
-copy(path.join(example, 'slides.md'), path.join(work, 'slides.md'));
+for (const d of ['layouts', 'components', 'composables', 'style.css', 'package.json']) copy(path.join(parts, d), path.join(work, d));
+fs.writeFileSync(path.join(work, 'slides.md'), deck);
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';

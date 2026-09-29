@@ -1,9 +1,9 @@
 <script setup>
 // 目次: md-section スライドの title を順に並べる。default slot に内容があればそちらを優先する。
-// frontmatter: title(任意, 既定「目次」)
+// frontmatter: title(任意, 既定「目次」), conclusion(任意)
 import { computed, unref, useSlots } from 'vue'
 import { useNav, useSlideContext } from '@slidev/client'
-import MdFooter from '../components/MdFooter.vue'
+import MdSide from '../components/MdSide.vue'
 
 const ctx = useSlideContext()
 const nav = useNav()
@@ -18,19 +18,23 @@ const sections = computed(() =>
 </script>
 
 <template>
-  <div class="slidev-layout md-toc">
-    <h1 class="md-title">{{ fm.title || '目次' }}</h1>
-    <div class="md-body">
-      <div class="md-text">
-        <slot v-if="slots.default" />
-        <ol v-else class="md-toc-list">
-          <li v-for="(s, i) in sections" :key="i">
-            <span class="md-toc-num">{{ String(i + 1).padStart(2, '0') }}</span>
-            <span>{{ s }}</span>
-          </li>
-        </ol>
+  <div class="slidev-layout md-sheet md-toc">
+    <div class="md-sheet-frame">
+      <div class="md-main">
+        <h1 class="md-title">{{ fm.title || '目次' }}</h1>
+        <div class="md-body">
+          <div class="md-text">
+            <slot v-if="slots.default" />
+            <ol v-else class="md-toc-list">
+              <li v-for="(s, i) in sections" :key="i">
+                <span class="md-toc-num">{{ String(i + 1).padStart(2, '0') }}</span>
+                <span>{{ s }}</span>
+              </li>
+            </ol>
+          </div>
+        </div>
       </div>
+      <MdSide :conclusion="fm.conclusion || ''" />
     </div>
-    <MdFooter />
   </div>
 </template>
