@@ -8,7 +8,8 @@
 
 共通の公開仕様は [common.md](common.md)。
 
-> **状態**: 2026-10-07、grill-me の対話（AskUserQuestion）で W1〜W12 を作者が選んだ。W13 は質問せずに既定として決め、同じ対話の中で作者に示した。実装は未着手。
+> **状態**: 2026-10-07、grill-me の対話（AskUserQuestion）で W1〜W12 を作者が選んだ。W13 は質問せずに既定として決め、同じ対話の中で作者に示した。
+> 2026-10-08、作者の指示で実装した。実装の中で決めた細部は W14。
 
 ## 裁定
 
@@ -96,3 +97,27 @@
   - 出力の改行は LF にする。
   - hook は `.claude/settings.json` に入れる。srcDir の外の md や、outDir の中の編集は無視する。
   - スキルを呼ぶと、setup・全件変換・結果の報告まで行う。もう一度呼ぶと変換器の更新になる。
+
+### W14. 実装の中で決めた細部（2026-10-08）
+
+- 置き場所: Skill は `md2html/` に置く。中身は次の4つ
+  - `runtime/`（setup がプロジェクトへそのままコピーする一式）
+  - `scripts/setup.mjs`
+  - `tools/`（同梱のライブラリを作り直すためのもの。利用者は使わない）
+  - `tests/convert.mjs`
+- 共通ファイル: nav.js と style.css は出力先の `_md2html/` に置く。docs の中に同じ名前のフォルダがあると衝突するが、まれなので対策しない。
+- 版: `runtime/version.json` に持つ（初版は 1.0.0）。
+  - hook が探す導入済みの Skill は3か所。プロジェクトの `.claude/skills/md2html`、`~/.claude/skills/md2html`、`~/.agents/skills/md2html`
+  - そこに新しい版があれば知らせる。知らせるのはセッションごとに1回（W8 の警告の具体化）
+- Mermaid: 版を 12.1.0 に固定する。配色は閲覧者の OS のダークモードに合わせる。
+- hook の登録: harness と同じ実行形式（`node` と `args`、`${CLAUDE_PROJECT_DIR}`）にする。timeout は30秒。
+- 終了コード:
+  - setup: 書く前に検査で止めたら 1。導入はしたが切れたリンクがあれば 2
+  - `--all`: 切れたリンクがあれば 2（setup の 2 はここから来る）
+  - `--check`: ずれがあれば 1。切れたリンクは警告に出すだけで、終了コードには影響しない
+- ずれの判定: 改行の CRLF と LF の違いは、ずれに数えない。git の autocrlf で取り出し直しただけの html が、ずれと判定されないようにするため。
+- `<html lang>`: 本文に日本語の文字があれば `ja`、無ければ `en` にする（C1 の「成果物は利用者の言語」に合わせる）。
+- 確認済み（2026-10-08、Node.js 24、Windows 11）:
+  - `tests/convert.mjs` の全場面が通った
+  - 一時プロジェクトで Claude Code（`claude -p`）に md を Edit させると、hook が発火して html が更新された
+  - Playwright でライト・ダーク・幅 390px の画面を撮って、見た目を確かめた

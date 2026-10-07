@@ -1,7 +1,7 @@
 # テスト
 
 このリポジトリが持つ自動テストの一覧。フレームワークは使わず、素の Node.js スクリプトを直接実行する。
-対象は `project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラ、`md-to-slidev` が同梱する Slidev の部品、`slide-design-review` のスクリプト。
+対象は `project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラ、`md-to-slidev` が同梱する Slidev の部品、`slide-design-review` のスクリプト、`md2html` の変換器・hook・setup。
 `project-design-opening`・`project-design-reboot` は対話が本体で、決定的な入出力を持たないため、自動テストの対象にしていない。
 
 ## 実行方法
@@ -14,6 +14,7 @@ node project-design-harness/tests/hook-scenarios.mjs   # write-boundary / comple
 node project-design-harness/tests/installer.mjs        # scripts/harness-install.mjs を約25場面で確認
 node md-to-slidev/tests/build-example.mjs              # 同梱の部品と完成例を静的に点検し、一時プロジェクトで slidev build する
 node slide-design-review/tests/scripts.mjs             # PNG の比較・退避と復元・終了コードを確かめ、md-to-slidev の完成例を実際に PNG へ書き出す
+node md2html/tests/convert.mjs                     # 一時プロジェクトに setup し、変換・リンクの書き換え・hook・孤立 html の掃除・--check を約35場面で確認
 ```
 
 `build-example.mjs` は `npm install` と `slidev build` を実行するので、ネットワークが要り、1〜2分かかる。
@@ -27,7 +28,7 @@ Slidev 53 は Node.js 22.12 以上を求めるので、書き出しを含めて�
 
 ## CI
 
-`.github/workflows/ci.yml` が、push と pull request のたびに上の5つと、hook スクリプトの構文チェック、
+`.github/workflows/ci.yml` が、push と pull request のたびに上の6つと、hook スクリプトの構文チェック、
 `npx skills add . --list` によるスキルの検出確認を実行する。
 
 ## この構成の理由

@@ -18,7 +18,7 @@ jobs:
       - name: Syntax-check the hook and installer scripts
         run: |
           set -e
-          for f in project-design-harness/assets/hooks/*.mjs project-design-harness/assets/hooks/lib/*.mjs project-design-harness/scripts/*.mjs md-to-slidev/tests/*.mjs slide-design-review/scripts/*.mjs slide-design-review/tests/*.mjs; do
+          for f in project-design-harness/assets/hooks/*.mjs project-design-harness/assets/hooks/lib/*.mjs project-design-harness/scripts/*.mjs md-to-slidev/tests/*.mjs slide-design-review/scripts/*.mjs slide-design-review/tests/*.mjs md2html/runtime/*.mjs md2html/scripts/*.mjs md2html/tests/*.mjs; do
             echo "node --check $f"
             node --check "$f"
           done
@@ -39,6 +39,9 @@ jobs:
         run: |
           npx -y playwright install-deps chromium
           node slide-design-review/tests/scripts.mjs
+
+      - name: md2html (setup, conversion, hook, orphan cleanup, --check)
+        run: node md2html/tests/convert.mjs
 
       - name: Skill discovery (npx skills)
         run: npx -y skills add . --list

@@ -2,7 +2,7 @@
 
 AI エージェントに開発を任せるための Skill 集。
 曖昧なアイデアから、Agent が安全に開発を進められる状態までを、3つの Skill の連鎖で整える。
-それとは別に、箇条書きの Markdown から Slidev のプレゼンテーションを作る `md-to-slidev` と、完成した Slidev のページを画像で見て1ページずつ直す `slide-design-review` も置いている。
+それとは別に、箇条書きの Markdown から Slidev のプレゼンテーションを作る `md-to-slidev` と、完成した Slidev のページを画像で見て1ページずつ直す `slide-design-review`、`docs/` の Markdown を編集のたびに HTML へ変換する `md2html` も置いている。
 
 ```text
 曖昧なアイデア（新規）
@@ -30,6 +30,7 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 | 詳細設計の Skill | 構想中 | 上の2つを土台に、機能・要件・システム設計を詰める |
 | [md-to-slidev](md-to-slidev/) | 初版（作者の実プレゼンで試用する前の段階） | 上の連鎖とは独立。箇条書きの Markdown から、白基調・図解優先の Slidev プレゼンテーションを作る |
 | [slide-design-review](slide-design-review/) | 初版（同梱の完成例の1ページで試した段階） | 上の連鎖とは独立。Slidev のページをレンダリングした画像でデザインをレビューし、直して、別の目で再評価するループを回す。Claude Code 専用 |
+| [md2html](md2html/) | 初版（作者の実プロジェクトで試用する前の段階） | 上の連鎖とは独立。`docs/` の Markdown を `docs/html/` の HTML に変換する仕組みを入れる。変換は node のプログラムが行い、md の編集のたびに hook で走る。Claude Code 専用 |
 
 ### project-design-opening
 
@@ -105,6 +106,17 @@ Agent に開発を任せるとき、失敗の多くはモデルの推論では�
 
 完成例は [slide-design-review/assets/example/](slide-design-review/assets/example/)（md-to-slidev の完成例の7ページ目を3回直した記録と、各回の画像）。
 
+### md2html
+
+プロジェクトの `docs/` 以下の Markdown を、同じフォルダ構成のまま `docs/html/` 以下の HTML にする仕組みを入れる。
+
+- **変換は LLM にさせない**: 同梱の node のプログラムが変換する。Claude Code の hook（PostToolUse の Write・Edit・MultiEdit）が、md の作成・編集のたびにそれを走らせる。Skill を呼ぶのは導入と更新のときだけ
+- **リンクを保つ**: md 同士のリンクは `.html` に書き換え、`#アンカー` も残す（見出しの id は GitHub と同じ規則）。画像など md 以外へのリンクは、HTML の位置から元のファイルを指すパスにする。リンク先が無ければ、hook が場所を Claude に伝える
+- **ページ**: 全ページに共通のサイドバーのナビと `index.html` が付く。シンタックスハイライト、Mermaid（CDN から読む）、タスクリスト、frontmatter の `title` に対応する。ライトとダークの両方の配色を持つ
+- **差分を小さく保つ**: hook が書くのは、編集したページと、共通の `nav.js`・`style.css`・`index.html` だけ。md が消えた HTML は次の実行で消す。生成したものでない HTML は残す
+- **プロジェクトの中で完結する**: 変換器は `.claude/md2html/` にコピーされ、node だけで動く（markdown-it と highlight.js を同梱）。`--check` で md と HTML のずれを確かめられる
+- **前提**: Claude Code、Node.js。エディタでの手動編集は hook が拾わないので、`--all` で追いつかせる
+
 ## 導入
 
 [skills CLI](https://github.com/vercel-labs/skills) を使う場合:
@@ -115,9 +127,10 @@ npx skills add polites-co-jp/claude-skills --skill project-design-reboot
 npx skills add polites-co-jp/claude-skills --skill project-design-harness
 npx skills add polites-co-jp/claude-skills --skill md-to-slidev
 npx skills add polites-co-jp/claude-skills --skill slide-design-review
+npx skills add polites-co-jp/claude-skills --skill md2html
 ```
 
-手で入れる場合は、`project-design-opening/`、`project-design-reboot/`、`project-design-harness/`、`md-to-slidev/`、`slide-design-review/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
+手で入れる場合は、`project-design-opening/`、`project-design-reboot/`、`project-design-harness/`、`md-to-slidev/`、`slide-design-review/`、`md2html/` のフォルダを、使っているエージェントの Skill 用ディレクトリにコピーする
 （Claude Code なら `~/.claude/skills/` か、プロジェクトの `.claude/skills/`）。
 
 ## 使い方
@@ -159,13 +172,21 @@ npx skills add polites-co-jp/claude-skills --skill slide-design-review
 
 「全ページを」と頼めば、先頭から1ページずつ順に回す。経過は `design-review/page-07/log.md` に、最初と最後の画像は同じフォルダの `r0.png` と最後の `rN.png` に残る。
 
+ドキュメントを HTML で読めるようにするときは、`docs/` のあるプロジェクトで Claude Code に次のように頼む。
+
+```text
+docs の md を html にして、編集したら自動で更新されるようにして。
+```
+
+`docs/html/index.html` が入口になる。以後は md を Claude に編集させるだけで HTML も更新される。
+
 ## 設計の記録
 
 各 Skill の設計判断とその理由は [docs/decisions/](docs/decisions/) に残してある。
 
 ## 開発
 
-`project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラ、`md-to-slidev` の部品、`slide-design-review` のスクリプト（書き出し・画素比較・退避と復元）には、リポジトリに自動テストがある。
+`project-design-harness` の hook（書き込み境界・完了ゲート）とインストーラ、`md-to-slidev` の部品、`slide-design-review` のスクリプト（書き出し・画素比較・退避と復元）、`md2html` の変換と hook には、リポジトリに自動テストがある。
 push・pull request のたびに GitHub Actions で実行される（[.github/workflows/ci.yml](.github/workflows/ci.yml)）。
 ローカルでの実行方法は [tests/README.md](tests/README.md)。
 
